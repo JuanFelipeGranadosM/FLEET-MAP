@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { api } from './api/client';
+import { api, DEMO } from './api/client';
 import { FleetMap, MapTooltip, type Hover } from './components/FleetMap';
 import { Header } from './components/Header';
 import { Kpis } from './components/Kpis';
@@ -49,10 +49,10 @@ export function App() {
                 <button type="button" aria-pressed={layer === 'state'} onClick={() => set('layer', 'state')}>Estado</button>
                 <button type="button" aria-pressed={layer === 'heat'} onClick={() => set('layer', 'heat')}>Calor de horas</button>
               </div>
-              <div className="seg" role="group" aria-label="Mapa base">
+              {!DEMO && <div className="seg" role="group" aria-label="Mapa base">
                 <button type="button" aria-pressed={basemap === 'dark'} onClick={() => set('basemap', 'dark')}>Oscuro</button>
                 <button type="button" aria-pressed={basemap === 'satellite'} onClick={() => set('basemap', 'satellite')}>Satélite</button>
-              </div>
+              </div>}
               <div className="active-filters">
                 {(Object.keys(filters) as (keyof typeof filters)[]).flatMap(dim => filters[dim].map(k => (
                   <button key={dim + k} type="button" className="af" onClick={() => toggle(dim, k, true)}>

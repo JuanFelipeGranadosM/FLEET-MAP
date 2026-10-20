@@ -13,6 +13,8 @@ import type { Catalog, Equipment, Site, StateId } from '../api/types';
 import type { Aggregates } from '../data/aggregate';
 import { useUi } from '../data/store';
 import { COLORS, fmt, hexToRgb } from '../lib/format';
+import { makeTerrain, type TerrainImage } from '../lib/terrain';
+import { DEMO } from '../api/client';
 
 const DARK_STYLE = (import.meta.env.VITE_MAP_STYLE_DARK as string | undefined) || 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
 const SAT_TILES = (import.meta.env.VITE_MAP_SATELLITE_TILES as string | undefined) || 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
@@ -24,8 +26,17 @@ const SAT_STYLE: StyleSpecification = {
     { id: 'sat', type: 'raster', source: 'sat', paint: { 'raster-brightness-max': 0.62, 'raster-saturation': -0.35, 'raster-contrast': 0.1 } },
   ],
 };
-// Respaldo sin red: fondo liso; vías, obras y equipos los sigue dibujando deck.gl.
-const OFFLINE_STYLE: StyleSpecification = { version: 8, sources: {}, layers: [{ id: 'bg', type: 'background', paint: { 'background-color': '#0b1624' } }] };
+// Respaldo sin red: relieve generado en el navegador; vías, obras y equipos los dibuja deck.gl.
+function offlineStyle(t: TerrainImage): StyleSpecification {
+  return {
+    version: 8,
+    sources: { terrain: { type: 'image', url: t.url, coordinates: t.coordinates } },
+    layers: [
+      { id: 'bg', type: 'background', paint: { 'background-color': '#060d17' } },
+      { id: 'terrain', type: 'raster', source: 'terrain', paint: { 'raster-fade-duration': 0, 'raster-resampling': 'linear' } },
+    ],
+  };
+}
 
 type RGBA = [number, number, number, number];
 const STATE_RGB = Object.fromEntries((['op', 'idle', 'standby', 'down', 'off'] as StateId[]).map(s => [s, hexToRgb(COLORS[s])])) as Record<StateId, [number, number, number]>;
@@ -47,7 +58,7 @@ function hash(s: string) { let h = 2166136261; for (const c of s) h = Math.imul(
 export function FleetMap({ catalog, fleet, agg, onHover }: Props) {
   const mapRef = useRef<MapRef>(null);
   const overlayRef = useRef<MapboxOverlay | null>(null);
-  const [offline, setOffline] = useState(false);
+  const [offline, setOffline] = useState(DEMO);
   const basemap = useUi(s => s.basemap), selected = useUi(s => s.selected);
   const reduced = useMemo(() => matchMedia('(prefers-reduced-motion: reduce)').matches, []);
 
@@ -182,7 +193,8 @@ export function FleetMap({ catalog, fleet, agg, onHover }: Props) {
   }, [selected, fleet, reduced]);
 
   const b = catalog.bbox;
-  const mapStyle = offline ? OFFLINE_STYLE : basemap === 'satellite' ? SAT_STYLE : DARK_STYLE;
+  const offStyle = useMemo(() => (offline ? offlineStyle(makeTerrain(catalog.bbox)) : null), [offline, catalog.bbox]);
+  const mapStyle = offStyle ? offStyle : basemap === 'satellite' ? SAT_STYLE : DARK_STYLE;
   return (
     <Map
       ref={mapRef}

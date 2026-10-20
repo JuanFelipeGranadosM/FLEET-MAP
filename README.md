@@ -26,6 +26,8 @@ npm install
 npm run dev
 ```
 
+Vista previa sin servidor: `npm run build:demo` en `apps/web` genera `dist-demo/index.html` (un solo archivo con el simulador en el navegador y relieve generado como mapa base).
+
 Opcional: `docker compose up` levanta PostgreSQL/Timescale/PostGIS con el esquema y la API.
 
 ## Endpoints

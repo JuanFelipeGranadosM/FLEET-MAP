@@ -1,7 +1,6 @@
 import { useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api/client';
-import type { LiveStatus } from '../api/types';
 import { aggregate, toSeries } from './aggregate';
 import { useUi } from './store';
 
@@ -26,21 +25,10 @@ export function useFleetData() {
   };
 }
 
-/** WebSocket con reconexión exponencial. */
+/** Eventos de estado en vivo (WebSocket, o simulados en modo demo). */
 export function useLiveSocket(enabled: boolean) {
   const pushEvent = useUi(s => s.pushEvent);
-  useEffect(() => {
-    if (!enabled) return;
-    let ws: WebSocket | null = null, retry = 0, stop = false, timer = 0;
-    const open = () => {
-      ws = new WebSocket(api.liveSocketUrl());
-      ws.onopen = () => { retry = 0; };
-      ws.onmessage = e => pushEvent(JSON.parse(e.data) as LiveStatus);
-      ws.onclose = () => { if (!stop) timer = window.setTimeout(open, Math.min(30_000, 1000 * 2 ** retry++)); };
-    };
-    open();
-    return () => { stop = true; clearTimeout(timer); ws?.close(); };
-  }, [enabled, pushEvent]);
+  useEffect(() => (enabled ? api.subscribeLive(pushEvent) : undefined), [enabled, pushEvent]);
 }
 
 export function useAggregates(d: ReturnType<typeof useFleetData>) {
