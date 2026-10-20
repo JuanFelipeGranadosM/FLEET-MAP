@@ -1,0 +1,41 @@
+{
+  "name": "fleetmap-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "@deck.gl/aggregation-layers": "9.1.12",
+    "@deck.gl/core": "9.1.12",
+    "@deck.gl/layers": "9.1.12",
+    "@deck.gl/mapbox": "9.1.12",
+    "@tanstack/react-query": "5.80.7",
+    "echarts": "5.6.0",
+    "echarts-for-react": "3.0.2",
+    "maplibre-gl": "5.6.0",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "react-map-gl": "8.0.4",
+    "zustand": "5.0.5"
+  },
+  "devDependencies": {
+    "@types/react": "19.1.8",
+    "@types/react-dom": "19.1.6",
+    "@vitejs/plugin-react": "4.5.2",
+    "typescript": "5.8.3",
+    "vite": "6.3.5"
+  },
+  "overrides": {
+    "@luma.gl/core": "9.1.9",
+    "@luma.gl/engine": "9.1.9",
+    "@luma.gl/shadertools": "9.1.9",
+    "@luma.gl/webgl": "9.1.9",
+    "@luma.gl/constants": "9.1.9",
+    "@luma.gl/gltf": "9.1.9"
+  }
+}

@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>FleetMap Control</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="src/styles.css">
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="brand">
+      <svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true">
+        <rect x="1" y="1" width="32" height="32" rx="8" fill="#112035" stroke="#ffc94d" stroke-opacity=".5"/>
+        <path d="M7 23h20M9 23l3-8h7l2 4h4v4" fill="none" stroke="#ffc94d" stroke-width="2" stroke-linejoin="round"/>
+        <circle cx="12" cy="24" r="2.4" fill="#ffc94d"/><circle cx="23" cy="24" r="2.4" fill="#ffc94d"/>
+        <path d="M19 15l5-6 3 2" fill="none" stroke="#38e0a0" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      <div><b>FLEETMAP</b><small>Centro de control de flota</small></div>
+    </div>
+    <span class="live"><span class="dot"></span>EN VIVO <span id="clock">--:--:--</span></span>
+    <span class="source">Fuente: <b>Simulador</b> · listo para ISO 15143-3 (AEMP 2.0)</span>
+    <div class="dates">
+      <div class="seg" role="group" aria-label="Periodo rápido" id="presets">
+        <button type="button" data-days="7" aria-pressed="false">7D</button>
+        <button type="button" data-days="30" aria-pressed="true">30D</button>
+        <button type="button" data-days="90" aria-pressed="false">90D</button>
+        <button type="button" data-days="181" aria-pressed="false">6M</button>
+      </div>
+      <label for="from">Desde <input type="date" id="from"></label>
+      <label for="to">Hasta <input type="date" id="to"></label>
+    </div>
+  </header>
+
+  <section class="kpis" id="kpis" aria-label="Indicadores del periodo"></section>
+
+  <main class="body">
+    <aside class="side panel" id="side" aria-label="Filtros">
+      <div class="side-head"><h2>Filtros</h2><button type="button" class="link" id="clearAll" hidden>Limpiar todo</button></div>
+      <div>
+        <div class="sec-head"><h3>Medir por</h3></div>
+        <div class="seg" role="group" aria-label="Métrica de las barras" id="metric" style="margin-top:8px">
+          <button type="button" data-m="work" aria-pressed="true">Horas</button>
+          <button type="button" data-m="billed" aria-pressed="false">Facturación</button>
+          <button type="button" data-m="util" aria-pressed="false">Utilización</button>
+        </div>
+      </div>
+      <section data-dim="state"><div class="sec-head"><h3>Estado en vivo</h3><button type="button" class="link" data-clear="state" hidden>Quitar</button></div><div class="chips"></div></section>
+      <section data-dim="type"><div class="sec-head"><h3>Tipo de equipo</h3><button type="button" class="link" data-clear="type" hidden>Quitar</button></div><div class="bars"></div></section>
+      <section data-dim="site"><div class="sec-head"><h3>Obra</h3><button type="button" class="link" data-clear="site" hidden>Quitar</button></div><div class="bars"></div></section>
+      <section data-dim="client"><div class="sec-head"><h3>Cliente</h3><button type="button" class="link" data-clear="client" hidden>Quitar</button></div><div class="bars"></div></section>
+      <p class="hint">Clic para filtrar todo el tablero. Ctrl/⌘ + clic suma varias opciones.</p>
+    </aside>
+
+    <div class="stage">
+      <div class="map-wrap" id="mapWrap">
+        <canvas id="map" aria-label="Mapa de la flota. Arrastre para mover, rueda para acercar, clic en un equipo para ver su detalle."></canvas>
+        <div class="layers">
+          <div class="seg" role="group" aria-label="Capa del mapa" id="layer">
+            <button type="button" data-l="state" aria-pressed="true">Estado</button>
+            <button type="button" data-l="heat" aria-pressed="false">Calor de horas</button>
+          </div>
+          <div class="active-filters" id="activeFilters"></div>
+        </div>
+        <div class="ctrls">
+          <div class="group">
+            <button type="button" id="zin" aria-label="Acercar">+</button>
+            <button type="button" id="zout" aria-label="Alejar">−</button>
+          </div>
+          <div class="group"><button type="button" id="zreset" aria-label="Ver toda la flota">⌂</button></div>
+        </div>
+        <div class="legend" id="legend"></div>
+        <div class="map-tip" id="mapTip" hidden></div>
+        <aside class="detail" id="detail" hidden aria-live="polite"></aside>
+      </div>
+      <div class="timeline panel">
+        <div class="tl-head">
+          <h3>Horas diarias de la flota<span id="tlRange"></span></h3>
+          <div class="tl-legend">
+            <span><i style="background:var(--op)"></i>Trabajadas</span>
+            <span><i style="background:var(--idle)"></i>Ralentí</span>
+            <span><i style="background:var(--standby)"></i>Standby</span>
+            <span><i style="background:var(--down)"></i>Avería</span>
+            <span style="color:var(--accent)">Arrastre para elegir fechas</span>
+          </div>
+        </div>
+        <div class="tl"><canvas id="tl"></canvas><div class="tl-tip" id="tlTip" hidden></div></div>
+      </div>
+    </div>
+
+    <aside class="right panel" aria-label="Equipos y eventos">
+      <section>
+        <div class="sec-head"><h2>Equipos</h2>
+          <div class="seg" role="group" aria-label="Ordenar equipos" id="rankBy">
+            <button type="button" data-r="leak" aria-pressed="true">Fuga</button>
+            <button type="button" data-r="work" aria-pressed="false">Horas</button>
+          </div>
+        </div>
+        <ul class="rank" id="rank"></ul>
+      </section>
+      <section>
+        <div class="sec-head"><h2>Eventos en vivo</h2></div>
+        <ul class="feed" id="feed"></ul>
+      </section>
+    </aside>
+  </main>
+</div>
+<script src="src/data/config.js"></script>
+<script src="src/data/providers.js"></script>
+<script src="src/data/store.js"></script>
+<script src="src/ui/charts.js"></script>
+<script src="src/ui/map.js"></script>
+<script src="src/app.js"></script>
+</body>
+</html>

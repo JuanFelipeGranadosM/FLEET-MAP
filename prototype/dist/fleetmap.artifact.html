@@ -1,0 +1,1681 @@
+<title>FleetMap Control</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: sala de control nocturna. Filtros a la izquierda, mapa al centro con línea de tiempo,
+   equipos y eventos a la derecha. Amarillo maquinaria como único acento; los colores de estado son semánticos. */
+:root {
+  --bg: #070e18;
+  --panel: #0c1625;
+  --panel-2: #112035;
+  --line: rgba(140, 172, 214, 0.14);
+  --fg: #e8eef7;
+  --muted: #8797b0;
+  --accent: #ffc94d;
+  --accent-ink: #1a1405;
+  --op: #38e0a0;
+  --idle: #ff9b5c;
+  --standby: #6cb6ff;
+  --down: #ff5d73;
+  --off: #7d8aa3;
+  --good: #38e0a0;
+  --bad: #ff5d73;
+  --f-display: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --f-body: "IBM Plex Sans", system-ui, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, monospace;
+  --r: 10px;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.45 var(--f-body); -webkit-font-smoothing: antialiased; }
+button, input { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.app {
+  height: 100%; display: grid; gap: 10px;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  padding-block: 10px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  background: radial-gradient(1200px 600px at 60% -10%, rgba(255, 201, 77, 0.06), transparent 60%), var(--bg);
+}
+
+/* ---------- encabezado ---------- */
+.top { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+.brand { display: flex; align-items: center; gap: 10px; }
+.brand svg { flex: none; }
+.brand b { font: 700 22px/1 var(--f-display); letter-spacing: 0.12em; }
+.brand small { display: block; color: var(--muted); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; margin-top: 3px; }
+.live { display: inline-flex; align-items: center; gap: 8px; font: 500 11px var(--f-mono); color: var(--muted); letter-spacing: 0.08em; padding: 5px 10px; border: 1px solid var(--line); border-radius: 99px; }
+.live .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--op); box-shadow: 0 0 0 0 var(--op); animation: ping 1.8s infinite; }
+@keyframes ping { 0% { box-shadow: 0 0 0 0 rgba(56, 224, 160, .6); } 100% { box-shadow: 0 0 0 9px rgba(56, 224, 160, 0); } }
+.source { font: 500 11px var(--f-mono); color: var(--muted); }
+.source b { color: var(--fg); font-weight: 500; }
+.dates { margin-left: auto; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.seg { display: inline-flex; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 3px; gap: 2px; }
+.seg button { border: 0; background: none; padding: 5px 10px; border-radius: 6px; font: 600 12px var(--f-mono); color: var(--muted); }
+.seg button:hover { color: var(--fg); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+.dates label { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.side .seg { display: flex; }
+.side .seg button { flex: 1; padding: 5px 4px; }
+.dates input { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 5px 8px; font: 500 12px var(--f-mono); }
+
+/* ---------- KPIs ---------- */
+.kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; }
+.kpi { background: linear-gradient(180deg, var(--panel-2), var(--panel)); border: 1px solid var(--line); border-radius: var(--r); padding: 10px 12px 8px; min-width: 0; position: relative; overflow: hidden; }
+.kpi h3 { margin: 0; font: 500 11px var(--f-body); color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+.kpi .v { font: 600 28px/1.1 var(--f-display); letter-spacing: 0.02em; margin-top: 4px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.kpi .sub { display: flex; justify-content: space-between; gap: 6px; font: 500 11px var(--f-mono); color: var(--muted); }
+.kpi .up { color: var(--good); } .kpi .down { color: var(--bad); }
+.kpi .spark { margin-top: 4px; height: 28px; }
+.kpi.hero { border-color: rgba(255, 201, 77, 0.45); }
+.kpi.hero .v { color: var(--accent); }
+.statebar { display: flex; height: 6px; border-radius: 3px; overflow: hidden; margin-top: 10px; gap: 2px; }
+.statebar i { display: block; transition: flex-grow .5s ease; }
+.statebar-legend { display: flex; flex-wrap: wrap; gap: 2px 10px; margin-top: 6px; font: 500 10px var(--f-mono); color: var(--muted); }
+
+/* ---------- cuerpo ---------- */
+.body { display: grid; grid-template-columns: 270px minmax(0, 1fr) 300px; gap: 10px; min-height: 0; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); min-height: 0; }
+.side, .right { overflow: auto; padding: 12px; display: flex; flex-direction: column; gap: 16px; scrollbar-width: thin; }
+.side-head, .sec-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.side h2, .sec-head h3, .right h2 { margin: 0; font: 600 15px var(--f-display); letter-spacing: 0.1em; text-transform: uppercase; }
+.sec-head h3 { font-size: 12px; color: var(--muted); }
+.link { border: 0; background: none; color: var(--accent); font-size: 12px; padding: 0; }
+.link:hover { text-decoration: underline; }
+.link[hidden] { display: none; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--panel-2); border-radius: 99px; padding: 4px 10px 4px 8px; font-size: 12px; transition: opacity .2s, border-color .2s; }
+.chip i { width: 8px; height: 8px; border-radius: 50%; }
+.chip b { font: 500 11px var(--f-mono); color: var(--muted); }
+.chip[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.dimmed .chip[aria-pressed="false"], .dimmed .bar[aria-pressed="false"] { opacity: 0.45; }
+
+.bars { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+.bar { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 8px; text-align: left; border: 1px solid transparent; background: none; padding: 5px 6px; border-radius: 6px; transition: background .15s, opacity .2s; }
+.bar:hover { background: var(--panel-2); }
+.bar[aria-pressed="true"] { background: rgba(255, 201, 77, 0.08); border-color: rgba(255, 201, 77, 0.5); }
+.bar .n { font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bar .n small { color: var(--muted); font: 500 10.5px var(--f-mono); margin-left: 4px; }
+.bar .val { font: 500 11.5px var(--f-mono); font-variant-numeric: tabular-nums; }
+.bar .track { grid-column: 1 / -1; height: 6px; border-radius: 3px; background: rgba(140, 172, 214, 0.08); display: flex; overflow: hidden; }
+.bar .track i { display: block; height: 100%; transition: width .45s cubic-bezier(.2, .8, .2, 1); }
+.hint { font-size: 11.5px; color: var(--muted); margin: 0; }
+
+.stage { display: grid; grid-template-rows: minmax(0, 1fr) 150px; gap: 10px; min-height: 0; min-width: 0; }
+.map-wrap { position: relative; overflow: hidden; border-radius: var(--r); border: 1px solid var(--line); background: #060d17; min-height: 320px; }
+.map-wrap canvas { position: absolute; inset: 0; touch-action: none; cursor: grab; display: block; }
+.map-wrap::after { content: ""; position: absolute; inset: 0; pointer-events: none; box-shadow: inset 0 0 80px rgba(0, 0, 0, .55); border-radius: inherit; }
+.ctrls { position: absolute; top: 12px; right: 12px; display: flex; flex-direction: column; gap: 8px; z-index: 3; }
+.ctrls .group { display: flex; flex-direction: column; background: rgba(9, 17, 29, .86); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; backdrop-filter: blur(6px); }
+.ctrls button { border: 0; background: none; width: 34px; height: 32px; display: grid; place-items: center; font: 600 16px var(--f-mono); }
+.ctrls button + button { border-top: 1px solid var(--line); }
+.ctrls button:hover { background: var(--panel-2); }
+.layers { position: absolute; top: 12px; left: 12px; z-index: 3; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; max-width: calc(100% - 70px); }
+.layers .seg { background: rgba(9, 17, 29, .86); backdrop-filter: blur(6px); }
+.active-filters { display: flex; gap: 6px; flex-wrap: wrap; }
+.af { display: inline-flex; align-items: center; gap: 6px; border: 1px solid rgba(255, 201, 77, .5); background: rgba(9, 17, 29, .86); color: var(--fg); border-radius: 99px; padding: 3px 8px 3px 10px; font-size: 12px; }
+.af span { color: var(--muted); }
+.legend { position: absolute; right: 12px; bottom: 12px; z-index: 2; display: flex; gap: 10px; flex-wrap: wrap; background: rgba(9, 17, 29, .8); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; font-size: 11.5px; backdrop-filter: blur(6px); }
+.legend span { display: inline-flex; align-items: center; gap: 5px; }
+.legend i { width: 8px; height: 8px; border-radius: 50%; box-shadow: 0 0 8px currentColor; }
+
+.map-tip { position: absolute; left: 0; top: 0; z-index: 4; pointer-events: none; background: rgba(9, 17, 29, .95); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-size: 12px; min-width: 170px; box-shadow: 0 10px 30px rgba(0, 0, 0, .4); }
+.map-tip b { font: 600 15px var(--f-display); letter-spacing: 0.05em; }
+.map-tip .row { display: flex; justify-content: space-between; gap: 12px; font: 500 11px var(--f-mono); color: var(--muted); }
+.map-tip .row span:last-child { color: var(--fg); }
+
+.pill { display: inline-flex; align-items: center; gap: 6px; padding: 2px 9px; border-radius: 99px; font: 600 11px var(--f-mono); letter-spacing: 0.04em; text-transform: uppercase; border: 1px solid currentColor; }
+.pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+/* ---------- detalle ---------- */
+.detail { position: absolute; top: 12px; right: 58px; bottom: 12px; width: min(360px, calc(100% - 80px)); z-index: 5; background: rgba(10, 19, 32, .94); border: 1px solid rgba(255, 201, 77, .35); border-radius: 12px; box-shadow: 0 20px 60px rgba(0, 0, 0, .55); backdrop-filter: blur(10px); overflow: auto; padding: 14px; display: flex; flex-direction: column; gap: 14px; animation: slide .32s cubic-bezier(.2, .8, .2, 1); scrollbar-width: thin; }
+@keyframes slide { from { transform: translateX(24px); opacity: 0; } }
+.d-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.d-head h2 { margin: 0; font: 700 30px/1 var(--f-display); letter-spacing: 0.04em; }
+.d-head p { margin: 4px 0 0; color: var(--muted); font-size: 12.5px; }
+.d-head .x { border: 1px solid var(--line); background: var(--panel-2); border-radius: 8px; width: 30px; height: 30px; flex: none; }
+.d-meta { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font: 500 11px var(--f-mono); color: var(--muted); }
+.d-fault { border: 1px solid rgba(255, 93, 115, .45); background: rgba(255, 93, 115, .08); color: #ffc2cb; border-radius: 8px; padding: 6px 10px; font-size: 12px; }
+.d-grid { display: grid; grid-template-columns: 128px 1fr; gap: 12px; align-items: center; }
+.gauge { position: relative; }
+.gauge .gv { position: absolute; left: 0; right: 0; bottom: 2px; text-align: center; font: 600 24px/1 var(--f-display); }
+.gauge .gl { position: absolute; left: 0; right: 0; bottom: -14px; text-align: center; font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+.gauge-arc { transition: stroke-dashoffset .8s cubic-bezier(.2, .8, .2, 1); }
+.hrs { display: grid; gap: 4px; }
+.hrs div { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 12.5px; }
+.hrs div span:first-child { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
+.hrs i { width: 8px; height: 8px; border-radius: 2px; }
+.hrs b { font: 500 12.5px var(--f-mono); font-variant-numeric: tabular-nums; }
+.d-sec h4 { margin: 0 0 6px; font: 600 12px var(--f-display); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.bill { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.bill td { padding: 5px 0; border-bottom: 1px dashed var(--line); }
+.bill td:last-child { text-align: right; font: 500 12.5px var(--f-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bill .calc { color: var(--muted); font: 400 11px var(--f-mono); display: block; }
+.bill tr.total td { border-bottom: 0; padding-top: 8px; }
+.bill tr.total td:first-child { font: 600 14px var(--f-display); letter-spacing: 0.08em; text-transform: uppercase; }
+.bill tr.total td:last-child { font: 600 22px var(--f-display); color: var(--accent); }
+.bill tr.leak td:last-child { color: var(--bad); }
+.d-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.btn { border: 1px solid var(--line); background: var(--panel-2); border-radius: 8px; padding: 7px 12px; font-size: 12.5px; }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+.foot { font: 400 10.5px var(--f-mono); color: var(--muted); margin: 0; }
+
+/* ---------- línea de tiempo ---------- */
+.timeline { padding: 8px 12px 6px; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 4px; min-width: 0; }
+.tl-head { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; align-items: baseline; }
+.tl-head h3 { margin: 0; font: 600 13px var(--f-display); letter-spacing: 0.1em; text-transform: uppercase; }
+.tl-head h3 span { color: var(--muted); font: 500 11px var(--f-mono); letter-spacing: 0; text-transform: none; margin-left: 8px; }
+.tl-legend { display: flex; gap: 12px; font-size: 11px; color: var(--muted); flex-wrap: wrap; }
+.tl-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.tl-legend i { width: 9px; height: 9px; border-radius: 2px; }
+.tl { position: relative; min-height: 0; }
+.tl canvas { position: absolute; inset: 0; touch-action: none; }
+.tl-tip { position: absolute; left: 0; top: 0; z-index: 2; pointer-events: none; background: rgba(9, 17, 29, .96); border: 1px solid var(--line); border-radius: 8px; padding: 6px 9px; font-size: 11.5px; display: grid; gap: 1px; width: 180px; }
+.tl-tip span { display: flex; align-items: center; gap: 6px; font-family: var(--f-mono); font-size: 11px; }
+.tl-tip i { width: 7px; height: 7px; border-radius: 2px; }
+.tl-tip .tip-money { color: var(--accent); margin-top: 2px; }
+
+/* ---------- derecha ---------- */
+.rank { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.rank button { width: 100%; display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; gap: 8px; align-items: center; border: 1px solid transparent; background: none; padding: 6px; border-radius: 6px; text-align: left; }
+.rank button:hover { background: var(--panel-2); }
+.rank button[aria-current="true"] { border-color: var(--accent); }
+.rank i { width: 8px; height: 8px; border-radius: 50%; }
+.rank .nm { font: 600 13px var(--f-display); letter-spacing: 0.04em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rank .nm small { font: 400 11px var(--f-body); color: var(--muted); letter-spacing: 0; margin-left: 4px; }
+.rank .vv { font: 500 11.5px var(--f-mono); font-variant-numeric: tabular-nums; }
+.rank .mini { grid-column: 2 / -1; height: 3px; background: rgba(140, 172, 214, .08); border-radius: 2px; overflow: hidden; }
+.rank .mini b { display: block; height: 100%; background: var(--bad); transition: width .45s; }
+.rank.hours .mini b { background: var(--op); }
+.feed { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.feed li { font-size: 12px; display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; padding: 6px 8px; border-radius: 6px; background: var(--panel-2); animation: feedIn .4s ease; cursor: pointer; }
+.feed li:hover { outline: 1px solid var(--line); }
+@keyframes feedIn { from { transform: translateY(-6px); opacity: 0; } }
+.feed time { font: 500 10.5px var(--f-mono); color: var(--muted); }
+.feed .ev { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.feed .ev b { font: 600 13px var(--f-display); letter-spacing: .04em; }
+.feed .ev .to { font: 600 10.5px var(--f-mono); text-transform: uppercase; }
+.feed .fault { grid-column: 1 / -1; color: #ffc2cb; font-size: 11.5px; }
+
+/* ---------- responsivo ---------- */
+@media (max-width: 1360px) {
+  .body { grid-template-columns: 250px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; }
+  .right { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; overflow: visible; }
+  .app { height: auto; min-height: 100%; }
+  .stage { height: max(560px, calc(100vh - 210px)); }
+  .side { max-height: max(560px, calc(100vh - 210px)); }
+  .kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 860px) {
+  .body { grid-template-columns: minmax(0, 1fr); }
+  .side { max-height: none; order: 2; }
+  .stage { order: 1; height: auto; grid-template-rows: 62vh 210px; }
+  .right { order: 3; grid-template-columns: 1fr; }
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dates { margin-left: 0; }
+  .detail { position: fixed; top: auto; left: 8px; right: 8px; bottom: calc(8px + env(safe-area-inset-bottom, 0px)); width: auto; max-height: 72vh; }
+  .legend { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+</style>
+<div class="app">
+  <header class="top">
+    <div class="brand">
+      <svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true">
+        <rect x="1" y="1" width="32" height="32" rx="8" fill="#112035" stroke="#ffc94d" stroke-opacity=".5"/>
+        <path d="M7 23h20M9 23l3-8h7l2 4h4v4" fill="none" stroke="#ffc94d" stroke-width="2" stroke-linejoin="round"/>
+        <circle cx="12" cy="24" r="2.4" fill="#ffc94d"/><circle cx="23" cy="24" r="2.4" fill="#ffc94d"/>
+        <path d="M19 15l5-6 3 2" fill="none" stroke="#38e0a0" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      <div><b>FLEETMAP</b><small>Centro de control de flota</small></div>
+    </div>
+    <span class="live"><span class="dot"></span>EN VIVO <span id="clock">--:--:--</span></span>
+    <span class="source">Fuente: <b>Simulador</b> · listo para ISO 15143-3 (AEMP 2.0)</span>
+    <div class="dates">
+      <div class="seg" role="group" aria-label="Periodo rápido" id="presets">
+        <button type="button" data-days="7" aria-pressed="false">7D</button>
+        <button type="button" data-days="30" aria-pressed="true">30D</button>
+        <button type="button" data-days="90" aria-pressed="false">90D</button>
+        <button type="button" data-days="181" aria-pressed="false">6M</button>
+      </div>
+      <label for="from">Desde <input type="date" id="from"></label>
+      <label for="to">Hasta <input type="date" id="to"></label>
+    </div>
+  </header>
+
+  <section class="kpis" id="kpis" aria-label="Indicadores del periodo"></section>
+
+  <main class="body">
+    <aside class="side panel" id="side" aria-label="Filtros">
+      <div class="side-head"><h2>Filtros</h2><button type="button" class="link" id="clearAll" hidden>Limpiar todo</button></div>
+      <div>
+        <div class="sec-head"><h3>Medir por</h3></div>
+        <div class="seg" role="group" aria-label="Métrica de las barras" id="metric" style="margin-top:8px">
+          <button type="button" data-m="work" aria-pressed="true">Horas</button>
+          <button type="button" data-m="billed" aria-pressed="false">Facturación</button>
+          <button type="button" data-m="util" aria-pressed="false">Utilización</button>
+        </div>
+      </div>
+      <section data-dim="state"><div class="sec-head"><h3>Estado en vivo</h3><button type="button" class="link" data-clear="state" hidden>Quitar</button></div><div class="chips"></div></section>
+      <section data-dim="type"><div class="sec-head"><h3>Tipo de equipo</h3><button type="button" class="link" data-clear="type" hidden>Quitar</button></div><div class="bars"></div></section>
+      <section data-dim="site"><div class="sec-head"><h3>Obra</h3><button type="button" class="link" data-clear="site" hidden>Quitar</button></div><div class="bars"></div></section>
+      <section data-dim="client"><div class="sec-head"><h3>Cliente</h3><button type="button" class="link" data-clear="client" hidden>Quitar</button></div><div class="bars"></div></section>
+      <p class="hint">Clic para filtrar todo el tablero. Ctrl/⌘ + clic suma varias opciones.</p>
+    </aside>
+
+    <div class="stage">
+      <div class="map-wrap" id="mapWrap">
+        <canvas id="map" aria-label="Mapa de la flota. Arrastre para mover, rueda para acercar, clic en un equipo para ver su detalle."></canvas>
+        <div class="layers">
+          <div class="seg" role="group" aria-label="Capa del mapa" id="layer">
+            <button type="button" data-l="state" aria-pressed="true">Estado</button>
+            <button type="button" data-l="heat" aria-pressed="false">Calor de horas</button>
+          </div>
+          <div class="active-filters" id="activeFilters"></div>
+        </div>
+        <div class="ctrls">
+          <div class="group">
+            <button type="button" id="zin" aria-label="Acercar">+</button>
+            <button type="button" id="zout" aria-label="Alejar">−</button>
+          </div>
+          <div class="group"><button type="button" id="zreset" aria-label="Ver toda la flota">⌂</button></div>
+        </div>
+        <div class="legend" id="legend"></div>
+        <div class="map-tip" id="mapTip" hidden></div>
+        <aside class="detail" id="detail" hidden aria-live="polite"></aside>
+      </div>
+      <div class="timeline panel">
+        <div class="tl-head">
+          <h3>Horas diarias de la flota<span id="tlRange"></span></h3>
+          <div class="tl-legend">
+            <span><i style="background:var(--op)"></i>Trabajadas</span>
+            <span><i style="background:var(--idle)"></i>Ralentí</span>
+            <span><i style="background:var(--standby)"></i>Standby</span>
+            <span><i style="background:var(--down)"></i>Avería</span>
+            <span style="color:var(--accent)">Arrastre para elegir fechas</span>
+          </div>
+        </div>
+        <div class="tl"><canvas id="tl"></canvas><div class="tl-tip" id="tlTip" hidden></div></div>
+      </div>
+    </div>
+
+    <aside class="right panel" aria-label="Equipos y eventos">
+      <section>
+        <div class="sec-head"><h2>Equipos</h2>
+          <div class="seg" role="group" aria-label="Ordenar equipos" id="rankBy">
+            <button type="button" data-r="leak" aria-pressed="true">Fuga</button>
+            <button type="button" data-r="work" aria-pressed="false">Horas</button>
+          </div>
+        </div>
+        <ul class="rank" id="rank"></ul>
+      </section>
+      <section>
+        <div class="sec-head"><h2>Eventos en vivo</h2></div>
+        <ul class="feed" id="feed"></ul>
+      </section>
+    </aside>
+  </main>
+</div>
+<script>
+/* FleetMap · configuración de dominio
+ * Catálogos de tipos de equipo, obras y clientes. En producción esto vendría
+ * del ERP / maestro de activos; la telemetría (AEMP) sólo aporta PIN, OEM y modelo.
+ */
+window.FM = window.FM || {};
+
+FM.config = {
+  currency: 'USD',
+  locale: 'es-CO',
+  // Ventana de datos disponible para la maqueta (días hacia atrás desde "hoy").
+  historyDays: 180,
+  today: '2026-10-20',
+  // Factor de facturación del standby sobre la tarifa hora (contrato tipo).
+  defaultStandbyFactor: 0.5,
+
+  // Bounding box geográfico del área de operación (lat/lon WGS84).
+  bbox: { latMin: 5.0, latMax: 6.6, lonMin: -76.0, lonMax: -74.4 },
+
+  types: [
+    { id: 'EXC', name: 'Excavadora',      rate: 95,  fuel: 18, models: ['CAT 336', 'Komatsu PC360LC-11', 'Volvo EC380E', 'Hitachi ZX350LC'] },
+    { id: 'VOL', name: 'Volqueta',        rate: 70,  fuel: 22, models: ['Volvo A40G', 'CAT 745', 'Komatsu HM400-5'] },
+    { id: 'CAR', name: 'Cargador',        rate: 85,  fuel: 16, models: ['CAT 966 GC', 'Volvo L150H', 'Komatsu WA470-8'] },
+    { id: 'BUL', name: 'Bulldozer',       rate: 120, fuel: 28, models: ['CAT D8', 'Komatsu D155AX-8', 'Liebherr PR 756'] },
+    { id: 'MOT', name: 'Motoniveladora',  rate: 90,  fuel: 15, models: ['CAT 140 GC', 'John Deere 772G', 'Komatsu GD655-7'] },
+    { id: 'RET', name: 'Retroexcavadora', rate: 55,  fuel: 8,  models: ['CAT 420', 'John Deere 310L', 'Case 580N'] },
+    { id: 'COM', name: 'Compactador',     rate: 60,  fuel: 10, models: ['CAT CS56B', 'Dynapac CA2500', 'Bomag BW 213'] },
+    { id: 'GRU', name: 'Grúa',            rate: 150, fuel: 20, models: ['Liebherr LTM 1090', 'Grove GMK5150L'] },
+  ],
+
+  clients: [
+    { id: 'C1', name: 'Concesión Vial Andina' },
+    { id: 'C2', name: 'Agregados del Valle' },
+    { id: 'C3', name: 'Hidroeléctrica Sur' },
+    { id: 'C4', name: 'Constructora Meridiano' },
+    { id: 'C5', name: 'Minera Cordillera' },
+  ],
+
+  // mix: peso relativo de cada tipo de equipo en la obra.
+  sites: [
+    { id: 'S1', name: 'Troncal Norte · Tramo 2', short: 'Troncal Norte',  client: 'C1', lat: 6.35, lon: -75.55, radius: 0.05, sunday: false, mix: { EXC: 4, VOL: 8, MOT: 3, COM: 3, BUL: 2, CAR: 1 } },
+    { id: 'S2', name: 'Cantera La Esperanza',    short: 'La Esperanza',   client: 'C2', lat: 6.05, lon: -75.20, radius: 0.035, sunday: true,  mix: { EXC: 3, CAR: 4, VOL: 6 } },
+    { id: 'S3', name: 'Presa Río Claro',         short: 'Río Claro',      client: 'C3', lat: 5.45, lon: -74.85, radius: 0.05, sunday: true,  mix: { EXC: 5, VOL: 7, BUL: 3, GRU: 3, COM: 2 } },
+    { id: 'S4', name: 'Parque Industrial Occidente', short: 'P.I. Occidente', client: 'C4', lat: 5.70, lon: -75.70, radius: 0.03, sunday: false, mix: { RET: 5, EXC: 2, COM: 2, GRU: 1, CAR: 2 } },
+    { id: 'S5', name: 'Variante San Isidro',     short: 'San Isidro',     client: 'C1', lat: 5.95, lon: -75.85, radius: 0.04, sunday: false, mix: { MOT: 3, COM: 3, VOL: 4, EXC: 2, RET: 2 } },
+    { id: 'S6', name: 'Mina El Porvenir',        short: 'El Porvenir',    client: 'C5', lat: 5.20, lon: -75.30, radius: 0.045, sunday: true, mix: { EXC: 4, VOL: 9, CAR: 3, BUL: 2 } },
+  ],
+
+  // Corredores viales (secuencias de puntos lat/lon) usados en el mapa base y por las volquetas.
+  roads: [
+    [[6.35, -75.55], [6.25, -75.42], [6.12, -75.28], [6.05, -75.20]],
+    [[6.05, -75.20], [5.88, -75.10], [5.66, -74.96], [5.45, -74.85]],
+    [[6.05, -75.20], [5.98, -75.45], [5.84, -75.60], [5.70, -75.70]],
+    [[5.70, -75.70], [5.82, -75.79], [5.95, -75.85]],
+    [[5.70, -75.70], [5.50, -75.55], [5.33, -75.40], [5.20, -75.30]],
+    [[5.20, -75.30], [5.28, -75.10], [5.40, -74.94], [5.45, -74.85]],
+    [[6.35, -75.55], [6.20, -75.72], [6.05, -75.82], [5.95, -75.85]],
+  ],
+  rivers: [
+    [[6.60, -75.05], [6.30, -75.00], [6.00, -74.98], [5.75, -74.90], [5.52, -74.88], [5.45, -74.85], [5.25, -74.70], [5.00, -74.62]],
+    [[6.60, -75.95], [6.30, -75.78], [6.00, -75.62], [5.75, -75.52], [5.45, -75.45], [5.10, -75.48], [5.00, -75.50]],
+  ],
+  // Orden en que se dibujan/listan los estados en vivo.
+  states: [
+    { id: 'op',      name: 'Operando',   color: '#38e0a0' },
+    { id: 'idle',    name: 'Ralentí',    color: '#ff9b5c' },
+    { id: 'standby', name: 'Standby',    color: '#6cb6ff' },
+    { id: 'down',    name: 'Avería',     color: '#ff5d73' },
+    { id: 'off',     name: 'Sin señal',  color: '#7d8aa3' },
+  ],
+};
+</script>
+<script>
+/* FleetMap · capa de datos de telemetría
+ *
+ * Toda la UI consume un único contrato (TelemetryProvider). Hoy se usa
+ * MockTelemetryProvider (datos simulados y deterministas). Para producción se
+ * cambia por AempTelemetryProvider (ISO 15143-3 / AEMP 2.0) o por un backend
+ * propio que agregue varias marcas, sin tocar mapa ni gráficos.
+ *
+ * Contrato:
+ *   getFleet()                     -> Promise<Equipment[]>
+ *   getDailyMetrics(fromISO, toISO)-> Promise<{ days: string[], metrics: { work, idle, standby, down, fuel } }>
+ *        cada métrica es Float32Array(nEquipos * nDías), índice = eq * nDías + día
+ *   getLiveStatus()                -> Promise<LiveStatus[]>
+ *   subscribe(cb)                  -> () => void   (push de cambios de estado en vivo)
+ *
+ * Equipment  = { id, pin, oem, model, typeId, siteId, clientId, lat, lon, rate, standbyFactor, year, hourMeter, route? }
+ * LiveStatus = { id, state: 'op'|'idle'|'standby'|'down'|'off', lat, lon, ts, fault? }
+ *
+ * Definiciones de negocio:
+ *   work    = horas trabajadas (horómetro, motor encendido; incluye ralentí)
+ *   idle    = horas en ralentí (subconjunto de work)
+ *   standby = horas de turno con el equipo disponible pero sin operar
+ *   down    = horas de turno perdidas por avería o mantenimiento
+ *   fuel    = litros consumidos
+ *   facturación = work * tarifa + standby * tarifa * factorStandby
+ */
+window.FM = window.FM || {};
+
+FM.util = {
+  // PRNG determinista (mulberry32) para que la maqueta siempre muestre lo mismo.
+  rng(seed) {
+    let a = seed >>> 0;
+    return () => {
+      a |= 0; a = (a + 0x6d2b79f5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  },
+  isoToDay(iso) { return Math.round(Date.parse(iso + 'T00:00:00Z') / 864e5); },
+  dayToIso(day) { return new Date(day * 864e5).toISOString().slice(0, 10); },
+  clamp(v, a, b) { return v < a ? a : v > b ? b : v; },
+};
+
+/* ------------------------------------------------------------------ */
+/* Simulador                                                           */
+/* ------------------------------------------------------------------ */
+FM.MockTelemetryProvider = class {
+  constructor(cfg = FM.config, seed = 20261020) {
+    this.cfg = cfg;
+    this.seed = seed;
+    this._listeners = new Set();
+    this._build();
+  }
+
+  _build() {
+    const { cfg } = this;
+    const r = FM.util.rng(this.seed);
+    const typeById = Object.fromEntries(cfg.types.map(t => [t.id, t]));
+    const fleet = [];
+    let n = 0;
+
+    for (const site of cfg.sites) {
+      const touching = cfg.roads
+        .map((road, i) => ({ i, road }))
+        .filter(({ road }) => near(road[0], site) || near(road[road.length - 1], site));
+      for (const [typeId, count] of Object.entries(site.mix)) {
+        const type = typeById[typeId];
+        for (let k = 0; k < count; k++) {
+          n++;
+          const model = type.models[Math.floor(r() * type.models.length)];
+          const ang = r() * Math.PI * 2, dist = Math.sqrt(r()) * site.radius;
+          const eq = {
+            id: `${typeId}-${String(n).padStart(3, '0')}`,
+            pin: 'PIN' + Math.floor(1e7 + r() * 9e7),
+            oem: model.split(' ')[0],
+            model,
+            typeId,
+            siteId: site.id,
+            clientId: site.client,
+            lat: site.lat + Math.sin(ang) * dist,
+            lon: site.lon + Math.cos(ang) * dist * 1.1,
+            rate: Math.round(type.rate * (0.92 + r() * 0.16)),
+            standbyFactor: cfg.defaultStandbyFactor,
+            year: 2016 + Math.floor(r() * 10),
+            hourMeter: Math.round(2000 + r() * 16000),
+            // parámetros internos de la simulación
+            _prop: 0.45 + r() * 0.5,
+            _idle: 0.08 + r() * 0.22,
+            _fuel: type.fuel * (0.9 + r() * 0.2),
+          };
+          // Las volquetas recorren un corredor vial que toca su obra.
+          if (typeId === 'VOL' && touching.length) {
+            const t = touching[Math.floor(r() * touching.length)];
+            const pts = near(t.road[0], site) ? t.road : t.road.slice().reverse();
+            eq.route = pts;
+          }
+          fleet.push(eq);
+        }
+      }
+    }
+    this.fleet = fleet;
+
+    // Serie diaria completa (historyDays) para todos los equipos.
+    const endDay = FM.util.isoToDay(cfg.today);
+    const nDays = cfg.historyDays + 1;
+    const startDay = endDay - cfg.historyDays;
+    const N = fleet.length * nDays;
+    const m = { work: new Float32Array(N), idle: new Float32Array(N), standby: new Float32Array(N), down: new Float32Array(N), fuel: new Float32Array(N) };
+    const siteById = Object.fromEntries(cfg.sites.map(s => [s.id, s]));
+    const sitePhase = Object.fromEntries(cfg.sites.map(s => [s.id, r() * 6.28]));
+
+    fleet.forEach((eq, e) => {
+      const site = siteById[eq.siteId];
+      let downLeft = 0;
+      for (let d = 0; d < nDays; d++) {
+        const day = startDay + d;
+        const dow = (new Date(day * 864e5).getUTCDay() + 6) % 7; // 0 = lunes
+        const shift = dow < 5 ? 10 : dow === 5 ? 6 : site.sunday ? 6 : 0;
+        const i = e * nDays + d;
+        if (downLeft <= 0 && r() < 0.012) downLeft = 1 + Math.floor(r() * 5);
+        if (shift === 0) { if (downLeft > 0) downLeft--; continue; }
+        if (downLeft > 0) {
+          downLeft--;
+          m.down[i] = shift;
+          continue;
+        }
+        const activity = 0.78 + 0.22 * Math.sin(d / 23 + sitePhase[eq.siteId]);
+        const util = FM.util.clamp(eq._prop * activity * (0.75 + r() * 0.5), 0, 0.98);
+        const work = shift * util;
+        const idle = work * eq._idle * (0.7 + r() * 0.6);
+        m.work[i] = work;
+        m.idle[i] = idle;
+        m.standby[i] = shift - work;
+        m.fuel[i] = (work - idle) * eq._fuel * (0.85 + r() * 0.3) + idle * eq._fuel * 0.22;
+      }
+    });
+    this._start = startDay;
+    this._nDays = nDays;
+    this._m = m;
+
+    // Estado en vivo inicial: coherente con el último día simulado.
+    this.live = fleet.map((eq, e) => {
+      const i = e * nDays + nDays - 1;
+      let state = 'standby';
+      if (m.down[i] > 0) state = 'down';
+      else if (r() < 0.04) state = 'off';
+      else { const p = m.work[i] / 10; const x = r(); state = x < p * 0.85 ? 'op' : x < p ? 'idle' : 'standby'; }
+      return { id: eq.id, state, lat: eq.lat, lon: eq.lon, ts: Date.now() - Math.floor(r() * 9e5) };
+    });
+
+    function near(pt, site) { return Math.abs(pt[0] - site.lat) < 0.02 && Math.abs(pt[1] - site.lon) < 0.02; }
+  }
+
+  async getFleet() { return this.fleet.map(({ _prop, _idle, _fuel, ...pub }) => pub); }
+
+  async getDailyMetrics(fromISO, toISO) {
+    const a = Math.max(FM.util.isoToDay(fromISO), this._start);
+    const b = Math.min(FM.util.isoToDay(toISO), this._start + this._nDays - 1);
+    if (a === this._start && b === this._start + this._nDays - 1) {
+      return { days: this._days(a, b), metrics: this._m };
+    }
+    const nD = b - a + 1, nE = this.fleet.length, out = {};
+    for (const k of Object.keys(this._m)) {
+      const src = this._m[k], dst = new Float32Array(nE * nD);
+      for (let e = 0; e < nE; e++) dst.set(src.subarray(e * this._nDays + (a - this._start), e * this._nDays + (b - this._start) + 1), e * nD);
+      out[k] = dst;
+    }
+    return { days: this._days(a, b), metrics: out };
+  }
+
+  _days(a, b) { const d = []; for (let x = a; x <= b; x++) d.push(FM.util.dayToIso(x)); return d; }
+
+  async getLiveStatus() { return this.live.map(s => ({ ...s })); }
+
+  // Simula el push de eventos de telemetría (en producción: websocket / SSE / polling AEMP).
+  subscribe(cb) {
+    this._listeners.add(cb);
+    if (!this._timer) {
+      const r = FM.util.rng(Date.now() & 0xffff);
+      const faults = ['SPN 110 · Temp. refrigerante alta', 'SPN 100 · Presión aceite baja', 'SPN 190 · Sobrevelocidad motor', 'Filtro hidráulico obstruido', 'Nivel DEF bajo'];
+      this._timer = setInterval(() => {
+        const s = this.live[Math.floor(r() * this.live.length)];
+        const prev = s.state;
+        const roll = r();
+        let next = prev;
+        if (prev === 'down') next = roll < 0.4 ? 'standby' : 'down';
+        else if (prev === 'off') next = 'standby';
+        else next = roll < 0.5 ? 'op' : roll < 0.68 ? 'idle' : roll < 0.95 ? 'standby' : roll < 0.985 ? 'down' : 'off';
+        if (next === prev) return;
+        s.state = next; s.ts = Date.now();
+        s.fault = next === 'down' ? faults[Math.floor(r() * faults.length)] : undefined;
+        const ev = { ...s, prev };
+        this._listeners.forEach(fn => fn(ev));
+      }, 1800);
+    }
+    return () => this._listeners.delete(cb);
+  }
+};
+
+/* ------------------------------------------------------------------ */
+/* Adaptador ISO 15143-3 (AEMP 2.0) · esqueleto para producción        */
+/* ------------------------------------------------------------------ */
+/* Cada OEM (CAT VisionLink, Komatsu Komtrax, Volvo CareTrack, JDLink…)
+ * expone el mismo estándar con su propia URL base y OAuth2. Recomendado:
+ * llamar desde un backend propio (los tokens no deben vivir en el navegador)
+ * y que ese backend exponga este mismo contrato ya agregado.
+ *
+ * Endpoints del estándar usados:
+ *   GET /Fleet/{page}                                                    -> snapshot de la flota
+ *   GET /Fleet/Equipment/ID/{id}/CumulativeOperatingHours/{from}/{to}/{page}
+ *   GET /Fleet/Equipment/ID/{id}/CumulativeIdleHours/{from}/{to}/{page}
+ *   GET /Fleet/Equipment/ID/{id}/FuelUsed/{from}/{to}/{page}
+ * Verificar nombres exactos y paginación contra la documentación de cada OEM.
+ */
+FM.AempTelemetryProvider = class {
+  /**
+   * @param {object} opts
+   * @param {string} opts.baseUrl        URL base AEMP del OEM o del backend propio
+   * @param {() => Promise<string>} opts.getToken  devuelve un bearer token
+   * @param {(pin: string) => object} opts.assetMaster  datos de negocio por PIN: { siteId, clientId, typeId, rate, standbyFactor }
+   * @param {(siteId: string, isoDay: string) => number} opts.shiftHours  horas de turno programadas
+   */
+  constructor(opts) { this.o = opts; }
+
+  async _get(path) {
+    const res = await fetch(this.o.baseUrl + path, { headers: { Authorization: 'Bearer ' + await this.o.getToken(), Accept: 'application/json' } });
+    if (!res.ok) throw new Error(`AEMP ${res.status} en ${path}`);
+    return res.json();
+  }
+
+  async getFleet() {
+    const out = [];
+    for (let page = 1; ; page++) {
+      const json = await this._get(`/Fleet/${page}`);
+      for (const eq of json.Equipment || []) {
+        const h = eq.EquipmentHeader || {};
+        const loc = eq.Location || {};
+        out.push({
+          id: h.EquipmentID || h.SerialNumber, pin: h.PIN || h.SerialNumber,
+          oem: h.OEMName, model: h.Model,
+          lat: loc.Latitude, lon: loc.Longitude,
+          hourMeter: eq.CumulativeOperatingHours?.Hour,
+          ...this.o.assetMaster(h.PIN || h.SerialNumber),
+        });
+      }
+      if (!(json.Links || []).some(l => l.rel === 'Next')) break;
+    }
+    this._fleet = out;
+    return out;
+  }
+
+  // Las series AEMP son acumuladas: se convierten a deltas diarios.
+  async getDailyMetrics(fromISO, toISO) {
+    const fleet = this._fleet || await this.getFleet();
+    const a = FM.util.isoToDay(fromISO), b = FM.util.isoToDay(toISO), nD = b - a + 1;
+    const days = []; for (let x = a; x <= b; x++) days.push(FM.util.dayToIso(x));
+    const N = fleet.length * nD;
+    const m = { work: new Float32Array(N), idle: new Float32Array(N), standby: new Float32Array(N), down: new Float32Array(N), fuel: new Float32Array(N) };
+    const series = async (id, kind, key) => {
+      const json = await this._get(`/Fleet/Equipment/ID/${encodeURIComponent(id)}/${kind}/${fromISO}T00:00:00Z/${toISO}T23:59:59Z/1`);
+      return (json[kind] || []).map(p => ({ day: FM.util.isoToDay(p.datetime.slice(0, 10)), v: +(p[key] ?? p.Hour ?? p.FuelConsumed ?? 0) }));
+    };
+    const toDaily = (pts, dst, e) => {
+      let prev = null;
+      for (const p of pts.sort((x, y) => x.day - y.day)) {
+        if (prev && p.day >= a && p.day <= b) dst[e * nD + (p.day - a)] += Math.max(0, p.v - prev.v);
+        prev = p;
+      }
+    };
+    await Promise.all(fleet.map(async (eq, e) => {
+      const [op, idle, fuel] = await Promise.all([
+        series(eq.id, 'CumulativeOperatingHours', 'Hour'),
+        series(eq.id, 'CumulativeIdleHours', 'Hour'),
+        series(eq.id, 'FuelUsed', 'FuelConsumed'),
+      ]);
+      toDaily(op, m.work, e); toDaily(idle, m.idle, e); toDaily(fuel, m.fuel, e);
+      // standby y avería salen del calendario de turnos + órdenes de mantenimiento (no vienen en AEMP).
+      for (let d = 0; d < nD; d++) {
+        const i = e * nD + d;
+        m.standby[i] = Math.max(0, this.o.shiftHours(eq.siteId, days[d]) - m.work[i] - m.down[i]);
+      }
+    }));
+    return { days, metrics: m };
+  }
+
+  async getLiveStatus() {
+    const fleet = await this.getFleet();
+    return fleet.map(eq => ({ id: eq.id, state: 'standby', lat: eq.lat, lon: eq.lon, ts: Date.now() }));
+  }
+
+  subscribe(cb) {
+    const t = setInterval(async () => (await this.getLiveStatus()).forEach(cb), 5 * 60 * 1000);
+    return () => clearInterval(t);
+  }
+};
+</script>
+<script>
+/* FleetMap · estado y agregación con filtros cruzados (tipo crossfilter)
+ *
+ * Todas las series viven en Float32Array planos; cada cambio de filtro recorre
+ * nEquipos × nDías una sola vez (≈ 25 mil celdas en la maqueta, < 1 ms).
+ * Cada dimensión se agrega ignorando su propio filtro, como en un BI:
+ * al elegir "Excavadora", la lista de tipos sigue mostrando los demás tipos.
+ */
+window.FM = window.FM || {};
+
+FM.FleetStore = class {
+  constructor(provider) {
+    this.provider = provider;
+    this.filters = { type: new Set(), site: new Set(), client: new Set(), state: new Set(), equipment: null };
+    this.range = { from: 0, to: 0 };
+    this._subs = new Set();
+    this.events = [];
+  }
+
+  async load() {
+    const cfg = FM.config;
+    this.fleet = await this.provider.getFleet();
+    const end = FM.util.isoToDay(cfg.today);
+    const { days, metrics } = await this.provider.getDailyMetrics(FM.util.dayToIso(end - cfg.historyDays), cfg.today);
+    this.days = days;
+    this.nDays = days.length;
+    this.m = metrics;
+    const live = await this.provider.getLiveStatus();
+    this.live = new Map(live.map(s => [s.id, s]));
+    this.idx = new Map(this.fleet.map((eq, i) => [eq.id, i]));
+    this.range = { from: this.nDays - 30, to: this.nDays - 1 };
+    this.provider.subscribe(ev => {
+      const cur = this.live.get(ev.id); if (cur) Object.assign(cur, ev);
+      this.events.unshift(ev); this.events.length = Math.min(this.events.length, 40);
+      this.compute(); this.emit('live', ev);
+    });
+    this.compute();
+  }
+
+  on(fn) { this._subs.add(fn); return () => this._subs.delete(fn); }
+  emit(kind, payload) { this._subs.forEach(fn => fn(kind, payload)); }
+
+  setRange(from, to) {
+    from = FM.util.clamp(Math.round(from), 0, this.nDays - 1);
+    to = FM.util.clamp(Math.round(to), from, this.nDays - 1);
+    if (from === this.range.from && to === this.range.to) return;
+    this.range = { from, to };
+    this.compute(); this.emit('filter');
+  }
+
+  toggle(dim, key, additive = true) {
+    const s = this.filters[dim];
+    if (!additive) { const had = s.has(key) && s.size === 1; s.clear(); if (!had) s.add(key); }
+    else s.has(key) ? s.delete(key) : s.add(key);
+    this.compute(); this.emit('filter');
+  }
+  clear(dim) {
+    if (dim) this.filters[dim].clear();
+    else for (const k of ['type', 'site', 'client', 'state']) this.filters[k].clear();
+    this.compute(); this.emit('filter');
+  }
+  select(id) { this.filters.equipment = id; this.emit('select', id); }
+
+  _keyOf(eq, dim) {
+    return dim === 'type' ? eq.typeId : dim === 'site' ? eq.siteId : dim === 'client' ? eq.clientId : this.live.get(eq.id)?.state;
+  }
+  passes(eq, except) {
+    for (const dim of ['type', 'site', 'client', 'state']) {
+      if (dim === except) continue;
+      const s = this.filters[dim];
+      if (s.size && !s.has(this._keyOf(eq, dim))) return false;
+    }
+    return true;
+  }
+  hasFilters() { return ['type', 'site', 'client', 'state'].some(k => this.filters[k].size); }
+
+  compute() {
+    const { fleet, m, nDays } = this;
+    const { from, to } = this.range;
+    const len = to - from + 1;
+    const pFrom = Math.max(0, from - len), pTo = from - 1;
+    const nE = fleet.length;
+
+    // Totales por equipo en el rango (y en el rango anterior para deltas).
+    const per = this.per = new Array(nE);
+    for (let e = 0; e < nE; e++) {
+      const eq = fleet[e], base = e * nDays;
+      let w = 0, i = 0, s = 0, d = 0, f = 0, pw = 0, ps = 0, pd = 0;
+      for (let k = base + from, end = base + to; k <= end; k++) { w += m.work[k]; i += m.idle[k]; s += m.standby[k]; d += m.down[k]; f += m.fuel[k]; }
+      for (let k = base + pFrom, end = base + pTo; k <= end; k++) { pw += m.work[k]; ps += m.standby[k]; pd += m.down[k]; }
+      const sf = eq.standbyFactor;
+      per[e] = {
+        work: w, idle: i, standby: s, down: d, fuel: f,
+        billed: w * eq.rate + s * eq.rate * sf,
+        potential: (w + s + d) * eq.rate,
+        prevWork: pw, prevStandby: ps, prevBilled: pw * eq.rate + ps * eq.rate * sf, prevPotential: (pw + ps + pd) * eq.rate,
+      };
+    }
+
+    // Grupos por dimensión (cada uno ignora su propio filtro).
+    const groups = this.groups = {};
+    for (const dim of ['type', 'site', 'client', 'state']) {
+      const g = new Map();
+      for (let e = 0; e < nE; e++) {
+        const eq = fleet[e];
+        if (!this.passes(eq, dim)) continue;
+        const key = this._keyOf(eq, dim), p = per[e];
+        const row = g.get(key) || { key, count: 0, work: 0, standby: 0, down: 0, billed: 0, potential: 0 };
+        row.count++; row.work += p.work; row.standby += p.standby; row.down += p.down; row.billed += p.billed; row.potential += p.potential;
+        g.set(key, row);
+      }
+      groups[dim] = g;
+    }
+
+    // KPIs y serie diaria (historia completa) del conjunto filtrado.
+    const k = this.kpi = { count: 0, work: 0, idle: 0, standby: 0, down: 0, fuel: 0, billed: 0, potential: 0, prevWork: 0, prevStandby: 0, prevBilled: 0, prevPotential: 0, states: {} };
+    const daily = this.daily = { work: new Float64Array(nDays), idle: new Float64Array(nDays), standby: new Float64Array(nDays), down: new Float64Array(nDays), billed: new Float64Array(nDays) };
+    const visible = this.visible = new Uint8Array(nE);
+    for (let e = 0; e < nE; e++) {
+      const eq = fleet[e];
+      if (!this.passes(eq)) continue;
+      visible[e] = 1;
+      const p = per[e];
+      k.count++;
+      for (const key of ['work', 'idle', 'standby', 'down', 'fuel', 'billed', 'potential', 'prevWork', 'prevStandby', 'prevBilled', 'prevPotential']) k[key] += p[key];
+      const st = this.live.get(eq.id)?.state; k.states[st] = (k.states[st] || 0) + 1;
+      const base = e * nDays, sf = eq.standbyFactor * eq.rate;
+      for (let d = 0; d < nDays; d++) {
+        const w = m.work[base + d], s = m.standby[base + d];
+        daily.work[d] += w; daily.idle[d] += m.idle[base + d]; daily.standby[d] += s; daily.down[d] += m.down[base + d];
+        daily.billed[d] += w * eq.rate + s * sf;
+      }
+    }
+    k.util = k.work / Math.max(1e-9, k.work + k.standby + k.down);
+    k.prevUtil = k.prevWork / Math.max(1e-9, this._prevHours());
+    k.leak = k.potential - k.billed;
+    k.prevLeak = k.prevPotential - k.prevBilled;
+  }
+
+  _prevHours() {
+    const { from, to } = this.range, len = to - from + 1, pFrom = Math.max(0, from - len), pTo = from - 1;
+    let h = 0;
+    for (let e = 0; e < this.fleet.length; e++) {
+      if (!this.visible[e]) continue;
+      const base = e * this.nDays;
+      for (let k = base + pFrom; k <= base + pTo; k++) h += this.m.work[k] + this.m.standby[k] + this.m.down[k];
+    }
+    return h;
+  }
+
+  equipmentSeries(id) {
+    const e = this.idx.get(id), base = e * this.nDays, { from, to } = this.range, out = [];
+    for (let d = from; d <= to; d++) out.push({ day: this.days[d], work: this.m.work[base + d], idle: this.m.idle[base + d], standby: this.m.standby[base + d], down: this.m.down[base + d], fuel: this.m.fuel[base + d] });
+    return out;
+  }
+};
+</script>
+<script>
+/* FleetMap · gráficos ligeros (Canvas / SVG sin librerías) */
+window.FM = window.FM || {};
+
+FM.fmt = {
+  money(v) {
+    const a = Math.abs(v);
+    const s = a >= 1e6 ? (v / 1e6).toFixed(2) + ' M' : a >= 1e3 ? (v / 1e3).toFixed(1) + ' k' : v.toFixed(0);
+    return 'US$ ' + s;
+  },
+  moneyFull(v) { return 'US$ ' + Math.round(v).toLocaleString('es-CO'); },
+  hours(v) { return v >= 1e4 ? (v / 1e3).toFixed(1) + ' k h' : Math.round(v).toLocaleString('es-CO') + ' h'; },
+  pct(v) { return (v * 100).toFixed(1) + ' %'; },
+  date(iso, opts = { day: 'numeric', month: 'short' }) { return new Date(iso + 'T12:00:00Z').toLocaleDateString('es-CO', { ...opts, timeZone: 'UTC' }); },
+  delta(cur, prev, invert = false) {
+    if (!prev) return { text: '—', cls: '' };
+    const d = (cur - prev) / prev;
+    const good = invert ? d < 0 : d > 0;
+    return { text: (d > 0 ? '▲ ' : '▼ ') + Math.abs(d * 100).toFixed(1) + ' %', cls: Math.abs(d) < 0.005 ? '' : good ? 'up' : 'down' };
+  },
+};
+
+/* Línea de tiempo con barras apiladas por día y selector de rango arrastrable. */
+FM.Timeline = class {
+  constructor(canvas, store, tip) {
+    this.c = canvas; this.ctx = canvas.getContext('2d'); this.store = store; this.tip = tip;
+    this.pad = { l: 44, r: 12, t: 10, b: 22 };
+    new ResizeObserver(() => this.draw()).observe(canvas.parentElement);
+    store.on(() => this.draw());
+    this._bind();
+  }
+  _x(d) { const w = this.w - this.pad.l - this.pad.r; return this.pad.l + d / this.store.nDays * w; }
+  _d(x) { const w = this.w - this.pad.l - this.pad.r; return FM.util.clamp(Math.floor((x - this.pad.l) / w * this.store.nDays), 0, this.store.nDays - 1); }
+  _bind() {
+    const c = this.c; let mode = null, anchor = 0, start = null;
+    c.addEventListener('pointerdown', e => {
+      c.setPointerCapture(e.pointerId);
+      const d = this._d(e.offsetX), { from, to } = this.store.range;
+      const xf = this._x(from), xt = this._x(to + 1);
+      if (Math.abs(e.offsetX - xf) < 7) mode = 'from';
+      else if (Math.abs(e.offsetX - xt) < 7) mode = 'to';
+      else if (d >= from && d <= to && to > from) { mode = 'move'; anchor = d; start = { from, to }; }
+      else { mode = 'new'; anchor = d; this.store.setRange(d, d); }
+    });
+    c.addEventListener('pointermove', e => {
+      const d = this._d(e.offsetX), { from, to } = this.store.range;
+      if (!mode) {
+        const xf = this._x(from), xt = this._x(to + 1);
+        c.style.cursor = Math.abs(e.offsetX - xf) < 7 || Math.abs(e.offsetX - xt) < 7 ? 'ew-resize' : d >= from && d <= to ? 'grab' : 'crosshair';
+        this._hover(d, e); return;
+      }
+      if (mode === 'from') this.store.setRange(Math.min(d, to), to);
+      else if (mode === 'to') this.store.setRange(from, Math.max(d, from));
+      else if (mode === 'new') this.store.setRange(Math.min(anchor, d), Math.max(anchor, d));
+      else if (mode === 'move') {
+        const len = start.to - start.from; let f = start.from + d - anchor;
+        f = FM.util.clamp(f, 0, this.store.nDays - 1 - len); this.store.setRange(f, f + len);
+      }
+      this._hover(d, e);
+    });
+    const end = () => { mode = null; };
+    c.addEventListener('pointerup', end); c.addEventListener('pointercancel', end);
+    c.addEventListener('pointerleave', () => { this.hoverDay = null; this.tip.hidden = true; this.draw(); });
+  }
+  _hover(d, e) {
+    this.hoverDay = d; this.draw();
+    const s = this.store, dl = s.daily;
+    this.tip.hidden = false;
+    this.tip.innerHTML = `<b>${FM.fmt.date(s.days[d], { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}</b>
+      <span><i style="background:var(--op)"></i>Trabajadas ${FM.fmt.hours(dl.work[d])}</span>
+      <span><i style="background:var(--idle)"></i>Ralentí ${FM.fmt.hours(dl.idle[d])}</span>
+      <span><i style="background:var(--standby)"></i>Standby ${FM.fmt.hours(dl.standby[d])}</span>
+      <span><i style="background:var(--down)"></i>Avería ${FM.fmt.hours(dl.down[d])}</span>
+      <span class="tip-money">${FM.fmt.moneyFull(dl.billed[d])}</span>`;
+    const r = this.c.getBoundingClientRect();
+    const tx = Math.min(e.offsetX + 14, r.width - 190);
+    this.tip.style.transform = `translate(${tx}px, ${-8}px)`;
+  }
+  draw() {
+    const s = this.store; if (!s.daily) return;
+    const r = this.c.parentElement.getBoundingClientRect(), dpr = Math.min(2, devicePixelRatio || 1);
+    this.w = r.width; this.h = r.height;
+    this.c.width = r.width * dpr; this.c.height = r.height * dpr; this.c.style.width = r.width + 'px'; this.c.style.height = r.height + 'px';
+    const g = this.ctx; g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, r.width, r.height);
+    const { l, r: pr, t, b } = this.pad, H = this.h - t - b, n = s.nDays, dl = s.daily;
+    let max = 1; for (let d = 0; d < n; d++) max = Math.max(max, dl.work[d] + dl.standby[d] + dl.down[d]);
+    max = nice(max);
+    const css = getComputedStyle(this.c);
+    const col = { op: css.getPropertyValue('--op'), idle: css.getPropertyValue('--idle'), standby: css.getPropertyValue('--standby'), down: css.getPropertyValue('--down'), grid: css.getPropertyValue('--line'), text: css.getPropertyValue('--muted'), acc: css.getPropertyValue('--accent') };
+    // retícula
+    g.font = '500 10px "IBM Plex Mono", ui-monospace, monospace'; g.fillStyle = col.text; g.strokeStyle = col.grid; g.lineWidth = 1;
+    for (let i = 0; i <= 3; i++) {
+      const y = t + H - H * i / 3; g.beginPath(); g.moveTo(l, Math.round(y) + 0.5); g.lineTo(this.w - pr, Math.round(y) + 0.5); g.stroke();
+      g.textAlign = 'right'; g.fillText(fmtK(max * i / 3), l - 6, y + 3);
+    }
+    g.textAlign = 'left';
+    // barras
+    const bw = Math.max(1, (this.w - l - pr) / n - 1);
+    const { from, to } = s.range;
+    for (let d = 0; d < n; d++) {
+      const x = this._x(d), inR = d >= from && d <= to;
+      g.globalAlpha = inR ? 1 : 0.28;
+      let y = t + H;
+      const segs = [[dl.work[d] - dl.idle[d], col.op], [dl.idle[d], col.idle], [dl.standby[d], col.standby], [dl.down[d], col.down]];
+      for (const [v, c] of segs) { const h = v / max * H; if (h <= 0) continue; y -= h; g.fillStyle = c; g.fillRect(x, y, bw, h); }
+      if (s.days[d].endsWith('-01')) { g.globalAlpha = 1; g.fillStyle = col.text; g.fillText(FM.fmt.date(s.days[d], { month: 'short' }).toUpperCase(), x + 2, this.h - 6); g.fillStyle = col.grid; g.fillRect(x, t, 1, H); }
+    }
+    g.globalAlpha = 1;
+    // rango seleccionado
+    const xf = this._x(from), xt = this._x(to + 1);
+    g.strokeStyle = col.acc; g.lineWidth = 1.5; g.strokeRect(xf + 0.5, t - 4, xt - xf - 1, H + 6);
+    g.fillStyle = col.acc; for (const x of [xf, xt]) { g.fillRect(x - 2.5, t + H / 2 - 9, 5, 18); }
+    if (this.hoverDay != null) { g.fillStyle = 'rgba(255,255,255,.12)'; g.fillRect(this._x(this.hoverDay), t, bw, H); }
+    function nice(v) { const p = Math.pow(10, Math.floor(Math.log10(v))); return Math.ceil(v / p * 2) / 2 * p; }
+    function fmtK(v) { return v >= 1000 ? (v / 1000).toFixed(1) + 'k' : Math.round(v); }
+  }
+};
+
+FM.svg = {
+  spark(values, color, w = 120, h = 32) {
+    const n = values.length; if (!n) return '';
+    let max = 0; for (const v of values) max = Math.max(max, v); max = max || 1;
+    const pts = values.map((v, i) => [(i / Math.max(1, n - 1)) * (w - 4) + 2, h - 3 - v / max * (h - 6)]);
+    const d = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join('');
+    const last = pts[n - 1];
+    return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" preserveAspectRatio="none" aria-hidden="true">
+      <path d="${d}L${last[0]} ${h}L2 ${h}Z" fill="${color}" fill-opacity=".14"/>
+      <path d="${d}" fill="none" stroke="${color}" stroke-width="1.6" vector-effect="non-scaling-stroke"/>
+      <circle cx="${last[0]}" cy="${last[1]}" r="2.6" fill="${color}"/></svg>`;
+  },
+  gauge(v, color) {
+    const R = 52, C = Math.PI * R; const val = FM.util.clamp(v, 0, 1);
+    return `<svg viewBox="0 0 128 74" width="128" height="74" aria-hidden="true">
+      <path d="M12 66 A52 52 0 0 1 116 66" fill="none" stroke="var(--line)" stroke-width="10" stroke-linecap="round"/>
+      <path class="gauge-arc" d="M12 66 A52 52 0 0 1 116 66" fill="none" stroke="${color}" stroke-width="10" stroke-linecap="round"
+        stroke-dasharray="${C}" stroke-dashoffset="${C * (1 - val)}"/>
+    </svg>`;
+  },
+  dailyBars(rows, w = 300, h = 78) {
+    const n = rows.length; if (!n) return '';
+    let max = 1; for (const r of rows) max = Math.max(max, r.work + r.standby + r.down);
+    const bw = w / n; let out = '';
+    rows.forEach((r, i) => {
+      let y = h; const x = (i * bw).toFixed(2), wd = Math.max(0.6, bw - (bw > 4 ? 1.5 : 0.3)).toFixed(2);
+      for (const [v, c] of [[r.work - r.idle, 'var(--op)'], [r.idle, 'var(--idle)'], [r.standby, 'var(--standby)'], [r.down, 'var(--down)']]) {
+        const hh = v / max * (h - 2); if (hh <= 0) continue; y -= hh;
+        out += `<rect x="${x}" y="${y.toFixed(2)}" width="${wd}" height="${hh.toFixed(2)}" fill="${c}"><title>${r.day}</title></rect>`;
+      }
+    });
+    return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" preserveAspectRatio="none" aria-hidden="true">${out}</svg>`;
+  },
+};
+</script>
+<script>
+/* FleetMap · mapa en Canvas 2D
+ *
+ * Rendimiento:
+ *  - El relieve se genera una sola vez en un canvas fuera de pantalla y se
+ *    dibuja con drawImage (una llamada por cuadro).
+ *  - Los marcadores usan sprites pre-renderizados por estado (sin gradientes por cuadro).
+ *  - La capa de calor se recalcula sólo cuando cambian filtros o fechas.
+ *  - requestAnimationFrame se pausa solo cuando la pestaña no está visible.
+ * En producción el relieve se reemplaza por MapLibre GL (teselas vectoriales)
+ * y esta misma capa de equipos se dibuja encima como overlay.
+ */
+window.FM = window.FM || {};
+
+FM.FleetMap = class {
+  constructor(canvas, store, hooks = {}) {
+    this.c = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.store = store;
+    this.hooks = hooks;
+    this.W = 1000; // tamaño del mundo en unidades de mapa
+    this.cam = { x: 500, y: 500, z: 1 };
+    this.target = null;
+    this.layer = 'state'; // 'state' | 'heat'
+    this.hover = null;
+    this.reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    this.colors = Object.fromEntries(FM.config.states.map(s => [s.id, s.color]));
+    this.siteById = Object.fromEntries(FM.config.sites.map(s => [s.id, s]));
+    this._prepare();
+    this._resize();
+    this._fit(true);
+    new ResizeObserver(() => { this._resize(); }).observe(canvas.parentElement);
+    this._bind();
+    store.on(kind => { if (kind !== 'select') this._heatDirty = true; });
+    this._heatDirty = true;
+    const loop = t => { this._frame(t); requestAnimationFrame(loop); };
+    requestAnimationFrame(loop);
+  }
+
+  /* ---------- proyección ---------- */
+  project(lat, lon) {
+    const b = FM.config.bbox;
+    return [(lon - b.lonMin) / (b.lonMax - b.lonMin) * this.W, (b.latMax - lat) / (b.latMax - b.latMin) * this.W];
+  }
+  toScreen(x, y) { return [(x - this.cam.x) * this.cam.z + this.vw / 2, (y - this.cam.y) * this.cam.z + this.vh / 2]; }
+  toWorld(sx, sy) { return [(sx - this.vw / 2) / this.cam.z + this.cam.x, (sy - this.vh / 2) / this.cam.z + this.cam.y]; }
+
+  _prepare() {
+    const cfg = FM.config;
+    this.fleet = this.store.fleet.map(eq => {
+      const [x, y] = this.project(eq.lat, eq.lon);
+      const route = eq.route && eq.route.map(([la, lo]) => this.project(la, lo));
+      let lens, total = 0;
+      if (route) { lens = [0]; for (let i = 1; i < route.length; i++) { total += Math.hypot(route[i][0] - route[i - 1][0], route[i][1] - route[i - 1][1]); lens.push(total); } }
+      const h = hash(eq.id);
+      return { eq, x, y, route, lens, total, phase: (h % 1000) / 1000, wob: 0.6 + (h % 97) / 97, sx: 0, sy: 0 };
+    });
+    this.roads = cfg.roads.map(r => r.map(([la, lo]) => this.project(la, lo)));
+    this.rivers = cfg.rivers.map(r => r.map(([la, lo]) => this.project(la, lo)));
+    this.sites = cfg.sites.map(s => { const [x, y] = this.project(s.lat, s.lon); return { s, x, y, r: s.radius / (cfg.bbox.lonMax - cfg.bbox.lonMin) * this.W * 1.25 }; });
+    this.terrain = this._terrain(768);
+    this.sprites = Object.fromEntries(FM.config.states.map(s => [s.id, sprite(s.color)]));
+    this.sprites.sel = sprite('#ffc94d');
+    this.ghost = sprite('#5a6984', 0.5);
+    this.heat = document.createElement('canvas'); this.heat.width = this.heat.height = 384;
+
+    function hash(str) { let h = 2166136261; for (const ch of str) h = Math.imul(h ^ ch.charCodeAt(0), 16777619); return h >>> 0; }
+    function sprite(color, alpha = 1) {
+      const c = document.createElement('canvas'); c.width = c.height = 64;
+      const g = c.getContext('2d');
+      const grd = g.createRadialGradient(32, 32, 2, 32, 32, 32);
+      grd.addColorStop(0, color); grd.addColorStop(0.22, color + 'cc'); grd.addColorStop(0.45, color + '33'); grd.addColorStop(1, color + '00');
+      g.globalAlpha = alpha; g.fillStyle = grd; g.fillRect(0, 0, 64, 64);
+      g.beginPath(); g.arc(32, 32, 7, 0, 7); g.fillStyle = color; g.fill();
+      g.lineWidth = 2; g.strokeStyle = 'rgba(6,12,22,.9)'; g.stroke();
+      return c;
+    }
+  }
+
+  // Relieve procedural: fbm de ruido de valor + cordillera diagonal, curvas de nivel y sombreado.
+  _terrain(S) {
+    const c = document.createElement('canvas'); c.width = c.height = S;
+    const g = c.getContext('2d'); const img = g.createImageData(S, S); const px = img.data;
+    const rnd = FM.util.rng(7); const P = 256; const perm = new Float32Array(P * P); for (let i = 0; i < perm.length; i++) perm[i] = rnd();
+    const vn = (x, y) => {
+      const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi;
+      const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
+      const a = perm[((yi & 255) * P) + (xi & 255)], b = perm[((yi & 255) * P) + ((xi + 1) & 255)];
+      const cc = perm[(((yi + 1) & 255) * P) + (xi & 255)], d = perm[(((yi + 1) & 255) * P) + ((xi + 1) & 255)];
+      return a + (b - a) * u + (cc - a) * v + (a - b - cc + d) * u * v;
+    };
+    const H = new Float32Array(S * S);
+    for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+      const nx = x / S, ny = y / S;
+      let f = 0, amp = 0.5, fr = 4;
+      for (let o = 0; o < 5; o++) { f += vn(nx * fr, ny * fr) * amp; amp *= 0.5; fr *= 2.03; }
+      const ridge1 = Math.exp(-Math.pow((nx * 0.9 + ny * 0.25 - 0.42) * 5.2, 2));
+      const ridge2 = Math.exp(-Math.pow((nx * 0.7 - ny * 0.35 - 0.38) * 5.5, 2)) * 0.6;
+      H[y * S + x] = f * 0.62 + (ridge1 + ridge2) * 0.45 * (0.5 + f);
+    }
+    const levels = 14;
+    for (let y = 1; y < S - 1; y++) for (let x = 1; x < S - 1; x++) {
+      const i = y * S + x, h = H[i];
+      const shade = (H[i - S - 1] - H[i + S + 1]) * 9; // luz desde el noroeste
+      const lv = Math.floor(h * levels);
+      const edge = lv !== Math.floor(H[i + 1] * levels) || lv !== Math.floor(H[i + S] * levels);
+      const t = FM.util.clamp(h, 0, 1);
+      let r = 9 + t * 22, gg = 19 + t * 34, b = 31 + t * 38;
+      r += shade * 40; gg += shade * 48; b += shade * 55;
+      if (edge) { r += 14; gg += 26; b += 32; }
+      if (lv % 4 === 0 && edge) { r += 10; gg += 16; b += 20; }
+      const o = i * 4; px[o] = r; px[o + 1] = gg; px[o + 2] = b; px[o + 3] = 255;
+    }
+    g.putImageData(img, 0, 0);
+    return c;
+  }
+
+  _resize() {
+    const r = this.c.parentElement.getBoundingClientRect();
+    this.dpr = Math.min(2, window.devicePixelRatio || 1);
+    this.vw = r.width; this.vh = r.height;
+    this.c.width = Math.round(r.width * this.dpr); this.c.height = Math.round(r.height * this.dpr);
+    this.c.style.width = r.width + 'px'; this.c.style.height = r.height + 'px';
+    this.fitZ = Math.min(this.vw, this.vh) / this.W * 1.08;
+  }
+  _fit(instant) {
+    const t = { x: this.W * 0.5, y: this.W * 0.5, z: Math.max(this.vw, this.vh) / this.W * 0.98 };
+    t.z = Math.max(t.z, this.fitZ);
+    if (instant) this.cam = t; else this.target = t;
+  }
+  reset() { this._fit(false); }
+  zoomBy(f) { const z = (this.target || this.cam).z * f; this.target = { x: this.cam.x, y: this.cam.y, z: FM.util.clamp(z, this.fitZ * 0.8, this.fitZ * 30) }; }
+  flyTo(id) {
+    const p = this.fleet.find(f => f.eq.id === id); if (!p) return;
+    // deja el equipo a la izquierda del panel de detalle cuando hay espacio
+    const z = Math.max(this.cam.z, this.fitZ * 3.2), off = this.vw > 860 ? Math.min(190, this.vw * 0.2) / z : 0;
+    this.target = { x: p.x, y: p.y, z, follow: p, off };
+  }
+  setLayer(l) { this.layer = l; }
+
+  /* ---------- interacción ---------- */
+  _bind() {
+    const c = this.c, pts = new Map();
+    let drag = null, moved = 0, pinch = null;
+    c.addEventListener('pointerdown', e => {
+      c.setPointerCapture(e.pointerId); pts.set(e.pointerId, [e.offsetX, e.offsetY]);
+      if (pts.size === 1) { drag = { x: e.offsetX, y: e.offsetY, cx: this.cam.x, cy: this.cam.y }; moved = 0; }
+      if (pts.size === 2) { const [a, b] = [...pts.values()]; pinch = { d: Math.hypot(a[0] - b[0], a[1] - b[1]), z: this.cam.z }; }
+      this.target = null;
+    });
+    c.addEventListener('pointermove', e => {
+      if (pts.has(e.pointerId)) pts.set(e.pointerId, [e.offsetX, e.offsetY]);
+      if (pinch && pts.size === 2) {
+        const [a, b] = [...pts.values()]; const d = Math.hypot(a[0] - b[0], a[1] - b[1]);
+        this.cam.z = FM.util.clamp(pinch.z * d / pinch.d, this.fitZ * 0.8, this.fitZ * 30); moved = 99; return;
+      }
+      if (drag) {
+        const dx = e.offsetX - drag.x, dy = e.offsetY - drag.y; moved = Math.max(moved, Math.abs(dx) + Math.abs(dy));
+        this.cam.x = drag.cx - dx / this.cam.z; this.cam.y = drag.cy - dy / this.cam.z;
+        c.style.cursor = 'grabbing';
+      } else {
+        this._hoverAt(e.offsetX, e.offsetY);
+      }
+    });
+    const up = e => {
+      pts.delete(e.pointerId); if (pts.size < 2) pinch = null;
+      if (drag && moved < 5 && pts.size === 0) this._clickAt(e.offsetX, e.offsetY);
+      if (pts.size === 0) drag = null;
+      c.style.cursor = '';
+    };
+    c.addEventListener('pointerup', up);
+    c.addEventListener('pointercancel', up);
+    c.addEventListener('pointerleave', () => { this.hover = null; this.hooks.onHover?.(null); });
+    c.addEventListener('wheel', e => {
+      e.preventDefault();
+      const f = Math.exp(-e.deltaY * 0.0015);
+      const z = FM.util.clamp(this.cam.z * f, this.fitZ * 0.8, this.fitZ * 30);
+      const [wx, wy] = this.toWorld(e.offsetX, e.offsetY);
+      this.cam.z = z;
+      const [wx2, wy2] = this.toWorld(e.offsetX, e.offsetY);
+      this.cam.x += wx - wx2; this.cam.y += wy - wy2; this.target = null;
+    }, { passive: false });
+    c.addEventListener('dblclick', e => { const [x, y] = this.toWorld(e.offsetX, e.offsetY); this.target = { x, y, z: Math.min(this.cam.z * 2.2, this.fitZ * 30) }; });
+  }
+
+  _pick(sx, sy) {
+    let best = null, bd = 14 * 14;
+    for (const p of this.fleet) {
+      const i = this.store.idx.get(p.eq.id); if (!this.store.visible[i]) continue;
+      const dx = p.sx - sx, dy = p.sy - sy, d = dx * dx + dy * dy;
+      if (d < bd) { bd = d; best = p; }
+    }
+    if (best) return { kind: 'eq', p: best };
+    for (const st of this.sites) {
+      const [x, y] = this.toScreen(st.x, st.y);
+      if (Math.hypot(x - sx, y - sy) < Math.max(26, st.r * this.cam.z)) return { kind: 'site', st };
+    }
+    return null;
+  }
+  _hoverAt(sx, sy) {
+    const h = this._pick(sx, sy);
+    this.hover = h;
+    this.c.style.cursor = h ? 'pointer' : 'grab';
+    this.hooks.onHover?.(h, sx, sy);
+  }
+  _clickAt(sx, sy) {
+    const h = this._pick(sx, sy);
+    if (h?.kind === 'eq') this.hooks.onSelect?.(h.p.eq.id);
+    else if (h?.kind === 'site') this.hooks.onSite?.(h.st.s.id);
+    else this.hooks.onSelect?.(null);
+  }
+
+  /* ---------- render ---------- */
+  _pos(p, t) {
+    const st = this.store.live.get(p.eq.id)?.state;
+    if (p.route && (st === 'op' || st === 'idle')) {
+      const speed = st === 'op' ? 0.018 : 0;
+      let u = (t * 0.001 * speed + p.phase) % 2; if (u > 1) u = 2 - u;
+      const d = u * p.total * 0.92;
+      let k = 1; while (k < p.lens.length - 1 && p.lens[k] < d) k++;
+      const a = p.route[k - 1], b = p.route[k], seg = (d - p.lens[k - 1]) / (p.lens[k] - p.lens[k - 1] || 1);
+      return [a[0] + (b[0] - a[0]) * seg, a[1] + (b[1] - a[1]) * seg];
+    }
+    if (st === 'op' && !this.reduced) {
+      const w = t * 0.0006 * p.wob + p.phase * 6.28;
+      return [p.x + Math.cos(w) * 0.9 * p.wob, p.y + Math.sin(w * 1.3) * 0.7];
+    }
+    return [p.x, p.y];
+  }
+
+  _renderHeat() {
+    const g = this.heat.getContext('2d'), S = this.heat.width, k = S / this.W;
+    g.clearRect(0, 0, S, S);
+    g.globalCompositeOperation = 'lighter';
+    let max = 1; for (const p of this.store.per) max = Math.max(max, p.work);
+    this.fleet.forEach((p, i) => {
+      if (!this.store.visible[i]) return;
+      const v = this.store.per[i].work / max; if (v <= 0) return;
+      const r = 26 * k * (0.6 + v);
+      const grd = g.createRadialGradient(p.x * k, p.y * k, 0, p.x * k, p.y * k, r);
+      grd.addColorStop(0, `rgba(255,170,60,${0.28 * v + 0.05})`); grd.addColorStop(1, 'rgba(255,90,60,0)');
+      g.fillStyle = grd; g.beginPath(); g.arc(p.x * k, p.y * k, r, 0, 7); g.fill();
+    });
+    g.globalCompositeOperation = 'source-over';
+    this._heatDirty = false;
+  }
+
+  _frame(t) {
+    const { ctx, cam } = this;
+    if (this.target) {
+      const T = this.target;
+      if (T.follow) { const [fx, fy] = this._pos(T.follow, t); T.x = fx + (T.off || 0); T.y = fy; }
+      const k = 0.14;
+      cam.x += (T.x - cam.x) * k; cam.y += (T.y - cam.y) * k; cam.z *= Math.pow(T.z / cam.z, k);
+      if (Math.abs(T.x - cam.x) < 0.05 && Math.abs(T.y - cam.y) < 0.05 && Math.abs(T.z / cam.z - 1) < 0.002 && !T.follow) this.target = null;
+    }
+    const z = cam.z, dpr = this.dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.fillStyle = '#060d17'; ctx.fillRect(0, 0, this.vw, this.vh);
+
+    // relieve
+    const [ox, oy] = this.toScreen(0, 0);
+    ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(this.terrain, ox, oy, this.W * z, this.W * z);
+
+    // retícula geográfica cada 0.2°
+    const b = FM.config.bbox;
+    ctx.strokeStyle = 'rgba(150,190,230,.07)'; ctx.lineWidth = 1; ctx.font = '500 10px "IBM Plex Mono", ui-monospace, monospace'; ctx.fillStyle = 'rgba(170,200,230,.45)';
+    ctx.beginPath();
+    for (let lo = Math.ceil(b.lonMin * 5) / 5; lo <= b.lonMax + 1e-9; lo += 0.2) { const [x] = this.toScreen(...this.project(b.latMax, lo)); ctx.moveTo(x, 0); ctx.lineTo(x, this.vh); }
+    for (let la = Math.ceil(b.latMin * 5) / 5; la <= b.latMax + 1e-9; la += 0.2) { const [, y] = this.toScreen(...this.project(la, b.lonMin)); ctx.moveTo(0, y); ctx.lineTo(this.vw, y); }
+    ctx.stroke();
+    for (let lo = Math.ceil(b.lonMin * 5) / 5; lo <= b.lonMax + 1e-9; lo += 0.2) { const [x] = this.toScreen(...this.project(b.latMax, lo)); ctx.fillText(Math.abs(lo).toFixed(1) + '°W', x + 4, 14); }
+    for (let la = Math.ceil(b.latMin * 5) / 5; la <= b.latMax + 1e-9; la += 0.2) { const [, y] = this.toScreen(...this.project(la, b.lonMin)); ctx.fillText(la.toFixed(1) + '°N', 6, y - 4); }
+
+    // ríos
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    for (const r of this.rivers) { this._path(r, true); ctx.strokeStyle = 'rgba(70,150,230,.35)'; ctx.lineWidth = Math.max(1.5, 1.6 * z); ctx.stroke(); }
+
+    // vías con flujo animado
+    for (const r of this.roads) {
+      this._path(r, false);
+      ctx.strokeStyle = 'rgba(5,10,18,.8)'; ctx.lineWidth = Math.max(3, 2.6 * z); ctx.stroke();
+      ctx.strokeStyle = 'rgba(214,190,140,.35)'; ctx.lineWidth = Math.max(1.2, 1.1 * z); ctx.stroke();
+      ctx.setLineDash([4, 10]); ctx.lineDashOffset = this.reduced ? 0 : -t * 0.02;
+      ctx.strokeStyle = 'rgba(255,201,77,.45)'; ctx.lineWidth = 1; ctx.stroke(); ctx.setLineDash([]);
+    }
+
+    // capa de calor
+    if (this.layer === 'heat') {
+      if (this._heatDirty) this._renderHeat();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.drawImage(this.heat, ox, oy, this.W * z, this.W * z);
+      ctx.globalCompositeOperation = 'source-over';
+    }
+
+    // obras: anillo con dona de estados en vivo
+    const st = this.store, siteFilter = st.filters.site;
+    const counts = {};
+    this.fleet.forEach((p, i) => { if (!st.visible[i]) return; const s = st.live.get(p.eq.id)?.state; const c = counts[p.eq.siteId] ||= { n: 0 }; c[s] = (c[s] || 0) + 1; c.n++; });
+    for (const S of this.sites) {
+      const [x, y] = this.toScreen(S.x, S.y);
+      const R = Math.max(22, S.r * z);
+      const dim = siteFilter.size && !siteFilter.has(S.s.id);
+      const c = counts[S.s.id] || { n: 0 };
+      ctx.globalAlpha = dim ? 0.3 : 1;
+      ctx.beginPath(); ctx.arc(x, y, R, 0, 7); ctx.fillStyle = 'rgba(255,201,77,.035)'; ctx.fill();
+      ctx.save(); ctx.translate(x, y); ctx.rotate(this.reduced ? 0 : t * 0.00012);
+      ctx.setLineDash([2, 6]); ctx.strokeStyle = 'rgba(255,201,77,.35)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(0, 0, R + 6, 0, 7); ctx.stroke(); ctx.setLineDash([]);
+      ctx.restore();
+      // dona
+      let a0 = -Math.PI / 2;
+      for (const s of FM.config.states) {
+        const v = c[s.id] || 0; if (!v) continue;
+        const a1 = a0 + v / c.n * Math.PI * 2;
+        ctx.beginPath(); ctx.arc(x, y, R + 1, a0 + 0.03, a1 - 0.03); ctx.strokeStyle = s.color; ctx.lineWidth = 3; ctx.stroke();
+        a0 = a1;
+      }
+      // etiqueta
+      const label = S.s.short.toUpperCase();
+      ctx.font = '600 13px "Barlow Condensed", "Arial Narrow", sans-serif';
+      const tw = ctx.measureText(label).width;
+      const lx = x + R + 10, ly = y - R * 0.55;
+      ctx.fillStyle = 'rgba(6,12,22,.78)'; roundRect(ctx, lx - 6, ly - 13, tw + 44, 20, 4); ctx.fill();
+      ctx.fillStyle = '#e8eef7'; ctx.fillText(label, lx, ly + 1);
+      ctx.font = '500 11px "IBM Plex Mono", ui-monospace, monospace'; ctx.fillStyle = '#ffc94d'; ctx.fillText(String(c.n), lx + tw + 8, ly + 1);
+      ctx.globalAlpha = 1;
+    }
+
+    // equipos
+    const size = FM.util.clamp(10 + z * 3.2, 16, 46);
+    const selId = st.filters.equipment;
+    const hoverId = this.hover?.kind === 'eq' ? this.hover.p.eq.id : null;
+    let selP = null;
+    for (let i = 0; i < this.fleet.length; i++) {
+      const p = this.fleet[i];
+      const [wx, wy] = this._pos(p, t);
+      const [x, y] = this.toScreen(wx, wy);
+      p.sx = x; p.sy = y;
+      if (x < -40 || y < -40 || x > this.vw + 40 || y > this.vh + 40) continue;
+      if (!st.visible[i]) { ctx.drawImage(this.ghost, x - size * 0.3, y - size * 0.3, size * 0.6, size * 0.6); continue; }
+      const s = st.live.get(p.eq.id)?.state || 'off';
+      if (s === 'op' && !this.reduced) {
+        const ph = ((t * 0.0009 + p.phase) % 1);
+        ctx.beginPath(); ctx.arc(x, y, 5 + ph * size * 0.7, 0, 7);
+        ctx.strokeStyle = `rgba(56,224,160,${0.55 * (1 - ph)})`; ctx.lineWidth = 1.5; ctx.stroke();
+      }
+      if (s === 'down') {
+        const blink = this.reduced ? 1 : 0.5 + 0.5 * Math.sin(t * 0.008 + p.phase * 6);
+        ctx.globalAlpha = 0.4 + 0.6 * blink;
+      }
+      const sz = p.eq.id === hoverId ? size * 1.35 : size;
+      ctx.drawImage(this.sprites[s], x - sz / 2, y - sz / 2, sz, sz);
+      ctx.globalAlpha = 1;
+      if (z > this.fitZ * 4.5) {
+        ctx.font = '500 10px "IBM Plex Mono", ui-monospace, monospace'; ctx.fillStyle = 'rgba(232,238,247,.85)';
+        ctx.fillText(p.eq.id, x + 9, y + 3);
+      }
+      if (p.eq.id === selId) selP = { x, y, p };
+    }
+
+    // selección
+    if (selP) {
+      const { x, y } = selP, pul = this.reduced ? 0 : (t * 0.002) % 1;
+      ctx.strokeStyle = '#ffc94d'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(x, y, 14, 0, 7); ctx.stroke();
+      ctx.globalAlpha = 1 - pul; ctx.beginPath(); ctx.arc(x, y, 14 + pul * 26, 0, 7); ctx.stroke(); ctx.globalAlpha = 1;
+      ctx.lineWidth = 1; ctx.beginPath();
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { ctx.moveTo(x + dx * 18, y + dy * 18); ctx.lineTo(x + dx * 28, y + dy * 28); }
+      ctx.stroke();
+    }
+
+    // escala gráfica
+    const kmPerUnit = (b.lonMax - b.lonMin) * 111.32 * Math.cos((b.latMin + b.latMax) / 2 * Math.PI / 180) / this.W;
+    const targetPx = 110, km = niceKm(targetPx / z * kmPerUnit), px = km / kmPerUnit * z;
+    const sx = 16, sy = this.vh - 18;
+    ctx.fillStyle = 'rgba(6,12,22,.7)'; roundRect(ctx, sx - 8, sy - 20, px + 70, 28, 6); ctx.fill();
+    ctx.strokeStyle = '#e8eef7'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(sx, sy - 6); ctx.lineTo(sx, sy); ctx.lineTo(sx + px, sy); ctx.lineTo(sx + px, sy - 6); ctx.stroke();
+    ctx.font = '500 11px "IBM Plex Mono", ui-monospace, monospace'; ctx.fillStyle = '#e8eef7'; ctx.fillText(km + ' km', sx + px + 8, sy - 1);
+
+    this.hooks.onFrame?.(selP);
+
+    function roundRect(g, x, y, w, h, r) { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
+    function niceKm(v) { const p = Math.pow(10, Math.floor(Math.log10(v))); const n = v / p; return (n < 1.5 ? 1 : n < 3.5 ? 2 : n < 7.5 ? 5 : 10) * p; }
+  }
+
+  _path(pts, smooth) {
+    const ctx = this.ctx; ctx.beginPath();
+    const s = pts.map(([x, y]) => this.toScreen(x, y));
+    ctx.moveTo(s[0][0], s[0][1]);
+    if (!smooth || s.length < 3) { for (let i = 1; i < s.length; i++) ctx.lineTo(s[i][0], s[i][1]); return; }
+    for (let i = 1; i < s.length - 1; i++) { const mx = (s[i][0] + s[i + 1][0]) / 2, my = (s[i][1] + s[i + 1][1]) / 2; ctx.quadraticCurveTo(s[i][0], s[i][1], mx, my); }
+    ctx.lineTo(s[s.length - 1][0], s[s.length - 1][1]);
+  }
+};
+</script>
+<script>
+/* FleetMap · arranque y enlace de la interfaz */
+(async () => {
+  const cfg = FM.config, fmt = FM.fmt, $ = s => document.querySelector(s);
+  const stateById = Object.fromEntries(cfg.states.map(s => [s.id, s]));
+  const typeById = Object.fromEntries(cfg.types.map(t => [t.id, t]));
+  const siteById = Object.fromEntries(cfg.sites.map(s => [s.id, s]));
+  const clientById = Object.fromEntries(cfg.clients.map(c => [c.id, c]));
+  const labels = {
+    type: k => typeById[k]?.name, site: k => siteById[k]?.short, client: k => clientById[k]?.name, state: k => stateById[k]?.name,
+  };
+
+  // Cambiar esta línea por `new FM.AempTelemetryProvider({...})` para datos reales.
+  const provider = new FM.MockTelemetryProvider();
+  const store = new FM.FleetStore(provider);
+  await store.load();
+
+  let metric = 'work', rankBy = 'leak';
+
+  /* ---------- mapa ---------- */
+  const tip = $('#mapTip');
+  const map = new FM.FleetMap($('#map'), store, {
+    onSelect: id => select(id, false),
+    onSite: id => store.toggle('site', id, false),
+    onHover: (h, x, y) => {
+      if (!h) { tip.hidden = true; return; }
+      tip.hidden = false;
+      if (h.kind === 'eq') {
+        const eq = h.p.eq, i = store.idx.get(eq.id), p = store.per[i], st = stateById[store.live.get(eq.id)?.state];
+        tip.innerHTML = `<b>${eq.id}</b> <span class="pill" style="color:${st.color};margin-left:6px">${st.name}</span>
+          <div style="color:var(--muted);margin:2px 0 6px">${eq.model} · ${siteById[eq.siteId].short}</div>
+          <div class="row"><span>Trabajadas</span><span>${fmt.hours(p.work)}</span></div>
+          <div class="row"><span>Standby</span><span>${fmt.hours(p.standby)}</span></div>
+          <div class="row"><span>Facturación</span><span>${fmt.money(p.billed)}</span></div>`;
+      } else {
+        const g = store.groups.site.get(h.st.s.id);
+        tip.innerHTML = `<b>${h.st.s.name}</b><div style="color:var(--muted);margin:2px 0 6px">${clientById[h.st.s.client].name}</div>
+          <div class="row"><span>Equipos</span><span>${g?.count || 0}</span></div>
+          <div class="row"><span>Trabajadas</span><span>${fmt.hours(g?.work || 0)}</span></div>
+          <div class="row"><span>Facturación</span><span>${fmt.money(g?.billed || 0)}</span></div>
+          <div style="margin-top:6px;color:var(--accent);font-size:11px">Clic para filtrar la obra</div>`;
+      }
+      const wrap = $('#mapWrap').getBoundingClientRect();
+      const tx = Math.min(x + 16, wrap.width - tip.offsetWidth - 8), ty = Math.min(y + 16, wrap.height - tip.offsetHeight - 8);
+      tip.style.transform = `translate(${tx}px, ${ty}px)`;
+    },
+  });
+  $('#zin').onclick = () => map.zoomBy(1.6);
+  $('#zout').onclick = () => map.zoomBy(1 / 1.6);
+  $('#zreset').onclick = () => map.reset();
+  segmented('#layer', 'l', v => map.setLayer(v));
+  $('#legend').innerHTML = cfg.states.map(s => `<span style="color:${s.color}"><i style="background:${s.color}"></i><span style="color:var(--fg)">${s.name}</span></span>`).join('');
+
+  new FM.Timeline($('#tl'), store, $('#tlTip'));
+
+  /* ---------- fechas ---------- */
+  const fromI = $('#from'), toI = $('#to');
+  fromI.min = toI.min = store.days[0]; fromI.max = toI.max = store.days[store.nDays - 1];
+  const dayIndex = iso => store.days.indexOf(iso);
+  fromI.onchange = () => { const i = dayIndex(fromI.value); if (i >= 0) store.setRange(i, Math.max(i, store.range.to)); };
+  toI.onchange = () => { const i = dayIndex(toI.value); if (i >= 0) store.setRange(Math.min(i, store.range.from), i); };
+  document.querySelectorAll('#presets button').forEach(b => b.onclick = () => { const n = +b.dataset.days; store.setRange(store.nDays - n, store.nDays - 1); });
+  function syncDates() {
+    const { from, to } = store.range;
+    fromI.value = store.days[from]; toI.value = store.days[to];
+    const len = to - from + 1;
+    document.querySelectorAll('#presets button').forEach(b => b.setAttribute('aria-pressed', String(to === store.nDays - 1 && +b.dataset.days === len)));
+    $('#tlRange').textContent = `${fmt.date(store.days[from])} – ${fmt.date(store.days[to], { day: 'numeric', month: 'short', year: 'numeric' })} · ${len} días`;
+  }
+
+  /* ---------- KPIs ---------- */
+  const kpiDefs = [
+    { id: 'count', title: 'Equipos en vista' },
+    { id: 'work', title: 'Horas trabajadas', spark: 'work', color: 'var(--op)' },
+    { id: 'standby', title: 'Horas standby', spark: 'standby', color: 'var(--standby)', invert: true },
+    { id: 'util', title: 'Utilización' },
+    { id: 'billed', title: 'Facturación', spark: 'billed', color: 'var(--accent)', hero: true },
+    { id: 'leak', title: 'No facturado', invert: true },
+  ];
+  $('#kpis').innerHTML = kpiDefs.map(d => `<article class="kpi${d.hero ? ' hero' : ''}" data-k="${d.id}"><h3>${d.title}</h3><div class="v">—</div><div class="sub"></div><div class="spark"></div></article>`).join('');
+  const shown = {};
+  function tween(el, key, to, f) {
+    const from = shown[key] ?? to * 0.6, t0 = performance.now(), dur = 550;
+    shown[key] = to;
+    const step = now => { const k = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - k, 3); el.textContent = f(from + (to - from) * e); if (k < 1) requestAnimationFrame(step); };
+    requestAnimationFrame(step);
+  }
+  function renderKpis() {
+    const k = store.kpi, { from, to } = store.range;
+    for (const d of kpiDefs) {
+      const el = document.querySelector(`.kpi[data-k="${d.id}"]`), v = el.querySelector('.v'), sub = el.querySelector('.sub'), sp = el.querySelector('.spark');
+      if (d.id === 'count') {
+        tween(v, d.id, k.count, x => Math.round(x) + ' / ' + store.fleet.length);
+        sp.innerHTML = `<div class="statebar">${cfg.states.map(s => `<i style="flex-grow:${k.states[s.id] || 0};background:${s.color}" title="${s.name}"></i>`).join('')}</div>`;
+        sub.innerHTML = `<span>${k.states.op || 0} operando</span><span>${k.states.down || 0} en avería</span>`;
+        continue;
+      }
+      if (d.id === 'util') {
+        tween(v, d.id, k.util, fmt.pct);
+        const dl = fmt.delta(k.util, k.prevUtil);
+        sub.innerHTML = `<span>vs periodo anterior</span><span class="${dl.cls}">${dl.text}</span>`;
+        sp.innerHTML = `<div class="statebar"><i style="flex-grow:${k.work};background:var(--op)"></i><i style="flex-grow:${k.standby};background:var(--standby)"></i><i style="flex-grow:${k.down};background:var(--down)"></i></div>`;
+        continue;
+      }
+      const val = k[d.id], prev = d.id === 'leak' ? k.prevLeak : k['prev' + d.id[0].toUpperCase() + d.id.slice(1)];
+      const isMoney = d.id === 'billed' || d.id === 'leak';
+      tween(v, d.id, val, isMoney ? fmt.money : fmt.hours);
+      const dl = fmt.delta(val, prev, d.invert);
+      sub.innerHTML = d.id === 'leak'
+        ? `<span>${fmt.pct(val / Math.max(1, k.potential))} del potencial</span><span class="${dl.cls}">${dl.text}</span>`
+        : `<span>vs periodo anterior</span><span class="${dl.cls}">${dl.text}</span>`;
+      if (d.spark) sp.innerHTML = FM.svg.spark(Array.from(store.daily[d.spark].subarray(from, to + 1)), d.color, 160, 28);
+      else sp.innerHTML = `<div class="statebar"><i style="flex-grow:${k.billed};background:var(--accent)"></i><i style="flex-grow:${val};background:var(--down)"></i></div>`;
+    }
+  }
+
+  /* ---------- filtros laterales ---------- */
+  segmented('#metric', 'm', v => { metric = v; renderSide(); });
+  const valueOf = row => metric === 'work' ? row.work : metric === 'billed' ? row.billed : row.work / Math.max(1e-9, row.work + row.standby + row.down);
+  const fmtOf = v => metric === 'work' ? fmt.hours(v) : metric === 'billed' ? fmt.money(v) : fmt.pct(v);
+  document.querySelectorAll('[data-clear]').forEach(b => b.onclick = () => store.clear(b.dataset.clear));
+  $('#clearAll').onclick = () => store.clear();
+
+  function renderSide() {
+    for (const dim of ['state', 'type', 'site', 'client']) {
+      const sec = document.querySelector(`[data-dim="${dim}"]`), f = store.filters[dim], g = store.groups[dim];
+      sec.classList.toggle('dimmed', f.size > 0);
+      sec.querySelector('[data-clear]').hidden = !f.size;
+      const keys = dim === 'state' ? cfg.states.map(s => s.id) : dim === 'type' ? cfg.types.map(t => t.id) : dim === 'site' ? cfg.sites.map(s => s.id) : cfg.clients.map(c => c.id);
+      if (dim === 'state') {
+        sec.querySelector('.chips').innerHTML = keys.map(k => `<button type="button" class="chip" data-k="${k}" aria-pressed="${f.has(k)}"><i style="background:${stateById[k].color}"></i>${stateById[k].name}<b>${g.get(k)?.count || 0}</b></button>`).join('');
+        continue;
+      }
+      const rows = keys.map(k => g.get(k) || { key: k, count: 0, work: 0, standby: 0, down: 0, billed: 0 });
+      rows.sort((a, b) => valueOf(b) - valueOf(a));
+      const max = Math.max(1e-9, ...rows.map(valueOf));
+      const box = sec.querySelector('.bars');
+      // actualización con clave para que las barras animen su ancho
+      const existing = new Map([...box.children].map(el => [el.dataset.k, el]));
+      rows.forEach(r => {
+        let el = existing.get(r.key);
+        if (!el) {
+          el = document.createElement('button'); el.type = 'button'; el.className = 'bar'; el.dataset.k = r.key;
+          el.innerHTML = `<span class="n"></span><span class="val"></span><span class="track"><i></i><i></i></span>`;
+          el.querySelectorAll('.track i').forEach(i => i.style.width = '0');
+        }
+        box.appendChild(el);
+        el.setAttribute('aria-pressed', String(f.has(r.key)));
+        el.querySelector('.n').innerHTML = `${labels[dim](r.key)}<small>${r.count}</small>`;
+        const v = valueOf(r);
+        el.querySelector('.val').textContent = fmtOf(v);
+        const [a, b] = el.querySelectorAll('.track i');
+        requestAnimationFrame(() => {
+          if (metric === 'work') { a.style.width = (r.work / max * 100) + '%'; a.style.background = 'var(--op)'; b.style.width = Math.min(100 - r.work / max * 100, r.standby / max * 100 * 0.35) + '%'; b.style.background = 'var(--standby)'; }
+          else if (metric === 'billed') { a.style.width = (v / max * 100) + '%'; a.style.background = 'var(--accent)'; b.style.width = '0'; }
+          else { a.style.width = (v * 100) + '%'; a.style.background = v > 0.6 ? 'var(--op)' : v > 0.4 ? 'var(--accent)' : 'var(--down)'; b.style.width = '0'; }
+        });
+      });
+    }
+    $('#clearAll').hidden = !store.hasFilters();
+    // chips de filtros activos sobre el mapa
+    const af = [];
+    for (const dim of ['state', 'type', 'site', 'client']) for (const k of store.filters[dim]) af.push(`<button type="button" class="af" data-dim="${dim}" data-k="${k}"><span>${{ state: 'Estado', type: 'Tipo', site: 'Obra', client: 'Cliente' }[dim]}</span>${labels[dim](k)} ✕</button>`);
+    $('#activeFilters').innerHTML = af.join('');
+  }
+  $('#side').addEventListener('click', e => {
+    const b = e.target.closest('.chip, .bar'); if (!b) return;
+    const dim = b.closest('[data-dim]').dataset.dim;
+    store.toggle(dim, b.dataset.k, e.ctrlKey || e.metaKey || e.shiftKey);
+  });
+  $('#activeFilters').addEventListener('click', e => { const b = e.target.closest('.af'); if (b) store.toggle(b.dataset.dim, b.dataset.k); });
+
+  /* ---------- ranking y eventos ---------- */
+  segmented('#rankBy', 'r', v => { rankBy = v; renderRank(); });
+  function renderRank() {
+    const rows = [];
+    store.fleet.forEach((eq, i) => { if (store.visible[i]) rows.push({ eq, p: store.per[i], v: rankBy === 'leak' ? store.per[i].potential - store.per[i].billed : store.per[i].work }); });
+    rows.sort((a, b) => b.v - a.v);
+    const top = rows.slice(0, 10), max = top[0]?.v || 1, sel = store.filters.equipment;
+    const ul = $('#rank'); ul.classList.toggle('hours', rankBy === 'work');
+    ul.innerHTML = top.map(r => {
+      const st = stateById[store.live.get(r.eq.id)?.state];
+      return `<li><button type="button" data-id="${r.eq.id}" aria-current="${r.eq.id === sel}"><i style="background:${st.color}"></i>
+        <span class="nm">${r.eq.id}<small>${typeById[r.eq.typeId].name} · ${siteById[r.eq.siteId].short}</small></span>
+        <span class="vv">${rankBy === 'leak' ? fmt.money(r.v) : fmt.hours(r.v)}</span><span class="mini"><b style="width:${r.v / max * 100}%"></b></span></button></li>`;
+    }).join('') || '<li class="hint">Ningún equipo cumple los filtros.</li>';
+  }
+  $('#rank').addEventListener('click', e => { const b = e.target.closest('[data-id]'); if (b) select(b.dataset.id, true); });
+
+  function renderFeed() {
+    $('#feed').innerHTML = store.events.slice(0, 12).map(ev => {
+      const a = stateById[ev.prev], b = stateById[ev.state];
+      const t = new Date(ev.ts).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      return `<li data-id="${ev.id}"><time>${t}</time><span class="ev"><b>${ev.id}</b><span class="to" style="color:${a.color}">${a.name}</span>→<span class="to" style="color:${b.color}">${b.name}</span></span>${ev.fault ? `<span class="fault">${ev.fault}</span>` : ''}</li>`;
+    }).join('') || '<li class="hint" style="background:none">Esperando eventos de telemetría…</li>';
+  }
+  $('#feed').addEventListener('click', e => { const li = e.target.closest('[data-id]'); if (li) select(li.dataset.id, true); });
+
+  /* ---------- detalle del equipo ---------- */
+  const detail = $('#detail');
+  function select(id, fly) {
+    store.select(id);
+    if (!id) { detail.hidden = true; renderRank(); return; }
+    if (fly) map.flyTo(id); else map.target = null;
+    renderDetail(true); renderRank();
+  }
+  function renderDetail(fresh) {
+    const id = store.filters.equipment; if (!id) return;
+    const i = store.idx.get(id), eq = store.fleet[i], p = store.per[i], live = store.live.get(id), st = stateById[live.state];
+    const type = typeById[eq.typeId], site = siteById[eq.siteId], client = clientById[eq.clientId];
+    const avail = p.work + p.standby + p.down, util = p.work / Math.max(1e-9, avail);
+    const ago = Math.max(0, Math.round((Date.now() - live.ts) / 60000));
+    const rows = store.equipmentSeries(id);
+    const fuelRate = p.fuel / Math.max(1e-9, p.work);
+    const sbBilled = p.standby * eq.rate * eq.standbyFactor;
+    const { from, to } = store.range;
+    detail.hidden = false;
+    if (fresh) { detail.style.animation = 'none'; void detail.offsetWidth; detail.style.animation = ''; }
+    detail.innerHTML = `
+      <div class="d-head"><div><h2>${eq.id}</h2><p>${type.name} · ${eq.model} · ${eq.year}</p></div><button type="button" class="x" id="dClose" aria-label="Cerrar detalle">✕</button></div>
+      <div class="d-meta"><span class="pill" style="color:${st.color}">${st.name}</span><span>Reporte hace ${ago} min</span><span>${eq.pin}</span></div>
+      ${live.state === 'down' && live.fault ? `<div class="d-fault">⚠ ${live.fault}</div>` : ''}
+      <div class="d-meta"><span>Obra: <b style="color:var(--fg)">${site.name}</b></span><span>Cliente: <b style="color:var(--fg)">${client.name}</b></span></div>
+      <div class="d-grid">
+        <div class="gauge">${FM.svg.gauge(util, util > 0.6 ? 'var(--op)' : util > 0.4 ? 'var(--accent)' : 'var(--down)')}<div class="gv">${(util * 100).toFixed(0)}%</div><div class="gl">Utilización</div></div>
+        <div class="hrs">
+          <div><span><i style="background:var(--op)"></i>Trabajadas</span><b>${p.work.toFixed(1)} h</b></div>
+          <div><span><i style="background:var(--idle)"></i>de ellas ralentí</span><b>${p.idle.toFixed(1)} h</b></div>
+          <div><span><i style="background:var(--standby)"></i>Standby</span><b>${p.standby.toFixed(1)} h</b></div>
+          <div><span><i style="background:var(--down)"></i>Avería</span><b>${p.down.toFixed(1)} h</b></div>
+        </div>
+      </div>
+      <div class="d-sec"><h4>Horas por día · ${fmt.date(store.days[from])} – ${fmt.date(store.days[to])}</h4>${FM.svg.dailyBars(rows)}</div>
+      <div class="d-sec"><h4>Facturación del periodo</h4>
+        <table class="bill"><tbody>
+          <tr><td>Horas trabajadas<span class="calc">${p.work.toFixed(1)} h × ${fmt.moneyFull(eq.rate)}/h</span></td><td>${fmt.moneyFull(p.work * eq.rate)}</td></tr>
+          <tr><td>Standby<span class="calc">${p.standby.toFixed(1)} h × ${fmt.moneyFull(eq.rate)}/h × ${Math.round(eq.standbyFactor * 100)} %</span></td><td>${fmt.moneyFull(sbBilled)}</td></tr>
+          <tr class="leak"><td>No facturado<span class="calc">standby restante + avería, sobre ${fmt.moneyFull(p.potential)} potencial</span></td><td>−${fmt.moneyFull(p.potential - p.billed)}</td></tr>
+          <tr class="total"><td>Total facturable</td><td>${fmt.moneyFull(p.billed)}</td></tr>
+        </tbody></table>
+      </div>
+      <div class="d-sec"><h4>Operación</h4>
+        <div class="hrs">
+          <div><span>Combustible</span><b>${Math.round(p.fuel).toLocaleString('es-CO')} L · ${fuelRate.toFixed(1)} L/h</b></div>
+          <div><span>Horómetro</span><b>${Math.round(eq.hourMeter).toLocaleString('es-CO')} h</b></div>
+          <div><span>Posición</span><b>${eq.lat.toFixed(4)}, ${eq.lon.toFixed(4)}</b></div>
+        </div>
+      </div>
+      <div class="d-actions"><button type="button" class="btn primary" id="dFollow">Seguir en el mapa</button><button type="button" class="btn" id="dSite">Filtrar obra</button></div>
+      <p class="foot">Fuente: simulador · Campos AEMP: CumulativeOperatingHours, CumulativeIdleHours, FuelUsed, Location. Standby y tarifa salen del contrato.</p>`;
+    $('#dClose').onclick = () => select(null);
+    $('#dFollow').onclick = () => map.flyTo(id);
+    $('#dSite').onclick = () => store.toggle('site', eq.siteId, false);
+  }
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && store.filters.equipment) select(null); });
+
+  /* ---------- reloj y suscripción ---------- */
+  const clock = $('#clock');
+  setInterval(() => clock.textContent = new Date().toLocaleTimeString('es-CO', { hour12: false }), 1000);
+  clock.textContent = new Date().toLocaleTimeString('es-CO', { hour12: false });
+
+  store.on((kind, ev) => {
+    renderKpis(); renderSide(); renderRank();
+    if (kind === 'filter') { syncDates(); renderDetail(false); }
+    if (kind === 'live') { renderFeed(); if (ev.id === store.filters.equipment) renderDetail(false); }
+  });
+  syncDates(); renderKpis(); renderSide(); renderRank(); renderFeed();
+  // Abre un equipo de ejemplo para que la maqueta arranque mostrando el detalle.
+  const first = store.fleet.find(eq => store.live.get(eq.id).state === 'op' && eq.typeId === 'EXC');
+  if (first && innerWidth > 860) setTimeout(() => select(first.id, true), 900);
+
+  function segmented(sel, key, cb) {
+    const g = $(sel);
+    g.addEventListener('click', e => {
+      const b = e.target.closest('button'); if (!b) return;
+      g.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+      cb(b.dataset[key]);
+    });
+  }
+})();
+</script>

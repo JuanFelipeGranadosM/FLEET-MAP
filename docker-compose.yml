@@ -1,0 +1,21 @@
+# Base de datos + API. La web se corre con `npm run dev` en apps/web (o se sirve el build estático).
+services:
+  db:
+    image: timescale/timescaledb-ha:pg16   # incluye PostGIS
+    environment:
+      POSTGRES_USER: fleetmap
+      POSTGRES_PASSWORD: fleetmap
+      POSTGRES_DB: fleetmap
+    ports: ["5432:5432"]
+    volumes:
+      - dbdata:/home/postgres/pgdata
+      - ./apps/api/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+  api:
+    build: ./apps/api
+    env_file: ./apps/api/.env.example
+    environment:
+      FLEETMAP_CORS_ORIGINS: '["http://localhost:5173"]'
+    ports: ["8000:8000"]
+    depends_on: [db]
+volumes:
+  dbdata:
