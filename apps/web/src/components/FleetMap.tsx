@@ -12,7 +12,7 @@ import type { Aggregates } from '../data/aggregate';
 import { useUi } from '../data/store';
 import { COLORS, fmt, hexToRgb } from '../lib/format';
 import { iconKey, machineIcon, machineIconUrl } from '../lib/machineIcons';
-import { useRoadSnappedFleet } from '../lib/roadRoutes';
+import { useRoadSnappedFleet, useRoadSnappedSites } from '../lib/roadRoutes';
 import type { ViewApi } from './basemap/types';
 
 export const MAPBOX_TOKEN = (import.meta.env.VITE_MAPBOX_TOKEN as string | undefined) ?? '';
@@ -42,7 +42,9 @@ export function FleetMap({ catalog, fleet, agg, onHover }: Props) {
   const useMapbox = !!MAPBOX_TOKEN;
 
   // con Mapbox, las volquetas siguen la geometría real de la vía (Directions API)
-  const roadFleet = useRoadSnappedFleet(fleet, MAPBOX_TOKEN);
+  // y los corredores de proyecto siguen la carretera; los equipos se reubican sobre ella
+  const snappedSites = useRoadSnappedSites(catalog.sites, fleet, MAPBOX_TOKEN);
+  const roadFleet = useRoadSnappedFleet(snappedSites.fleet, MAPBOX_TOKEN);
   const moving = useMemo<Moving[]>(() => roadFleet.map((eq, idx) => {
     const h = hash(eq.id), m: Moving = { eq, idx, icon: iconKey(eq), phase: (h % 1000) / 1000, u: ((h % 1000) / 1000) * 2 };
     if (eq.route) {
@@ -53,8 +55,8 @@ export function FleetMap({ catalog, fleet, agg, onHover }: Props) {
     return m;
   }), [roadFleet]);
 
-  const corridors = useMemo(() => catalog.sites.filter(s => s.path && s.path.length > 1), [catalog]);
-  const points = useMemo(() => catalog.sites.filter(s => !s.path || s.path.length < 2), [catalog]);
+  const corridors = useMemo(() => snappedSites.sites.filter(s => s.path && s.path.length > 1), [snappedSites.sites]);
+  const points = useMemo(() => snappedSites.sites.filter(s => !s.path || s.path.length < 2), [snappedSites.sites]);
   const haul = useMemo(() => roadFleet.filter(e => e.route).map(e => ({ path: e.route!.map(([la, lo]) => [lo, la] as [number, number]) })), [roadFleet]);
 
   const latest = useRef({ agg, selected, layer: useUi.getState().layer, live: useUi.getState().live, filters: useUi.getState().filters, zoom: 8.5, context: null as Context | null });
@@ -197,10 +199,10 @@ export function FleetMap({ catalog, fleet, agg, onHover }: Props) {
   // volar al equipo seleccionado, dejando espacio para el panel de detalle
   useEffect(() => {
     if (!selected) return;
-    const eq = fleet.find(e => e.id === selected), v = viewRef.current; if (!eq || !v) return;
+    const eq = roadFleet.find(e => e.id === selected), v = viewRef.current; if (!eq || !v) return;
     const wide = window.innerWidth > 860;
     v.flyTo({ center: [eq.lon, eq.lat], zoom: Math.max(v.getZoom(), 12), padding: { right: wide ? 380 : 0, left: 0, top: 0, bottom: wide ? 0 : 260 }, duration: reduced ? 0 : 1600 });
-  }, [selected, fleet, reduced]);
+  }, [selected, roadFleet, reduced]);
 
   const b = catalog.bbox, bounds: [[number, number], [number, number]] = [[b.lonMin, b.latMin], [b.lonMax, b.latMax]];
   const props = { bounds, kind: basemap === 'satellite' ? 'satellite' as const : 'light' as const, onOverlay, onView, onZoom };
