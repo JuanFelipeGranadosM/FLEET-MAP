@@ -3,6 +3,8 @@
 La telemetría AEMP sólo aporta PIN, OEM, modelo, horas, combustible y posición;
 tipos, tarifas, obras, clientes y turnos son datos propios de la empresa.
 """
+import json
+from pathlib import Path
 
 STANDBY_FACTOR = 0.5
 
@@ -36,16 +38,9 @@ SITES = [
     {"id": "S6", "name": "Mina El Porvenir", "short": "El Porvenir", "client": "C5", "lat": 5.20, "lon": -75.30, "radius": 0.045, "sunday": True, "mix": {"EXC": 4, "VOL": 9, "CAR": 3, "BUL": 2}},
 ]
 
-# Corredores viales [lat, lon] usados por el mapa y por las volquetas.
-ROADS = [
-    [[6.35, -75.55], [6.25, -75.42], [6.12, -75.28], [6.05, -75.20]],
-    [[6.05, -75.20], [5.88, -75.10], [5.66, -74.96], [5.45, -74.85]],
-    [[6.05, -75.20], [5.98, -75.45], [5.84, -75.60], [5.70, -75.70]],
-    [[5.70, -75.70], [5.82, -75.79], [5.95, -75.85]],
-    [[5.70, -75.70], [5.50, -75.55], [5.33, -75.40], [5.20, -75.30]],
-    [[5.20, -75.30], [5.28, -75.10], [5.40, -74.94], [5.45, -74.85]],
-    [[6.35, -75.55], [6.20, -75.72], [6.05, -75.82], [5.95, -75.85]],
-]
+# Vías reales (Natural Earth 10m, [lon, lat]) por las que el simulador mueve las volquetas.
+# El mapa no dibuja vías propias: las pone el mapa base.
+REAL_ROADS: list[list[list[float]]] = json.loads((Path(__file__).with_name("real_roads.json")).read_text())
 
 STATES = [
     {"id": "op", "name": "Operando", "color": "#12a87a"},

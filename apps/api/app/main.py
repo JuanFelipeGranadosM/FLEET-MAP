@@ -54,7 +54,7 @@ async def catalog() -> dict:
     return {
         "currency": "USD", "today": settings.today, "historyDays": settings.history_days,
         "standbyFactor": cat.STANDBY_FACTOR, "bbox": cat.BBOX, "types": cat.TYPES, "clients": cat.CLIENTS,
-        "sites": cat.SITES, "roads": cat.ROADS, "states": cat.STATES,
+        "sites": cat.SITES, "roads": [], "states": cat.STATES,
     }
 
 

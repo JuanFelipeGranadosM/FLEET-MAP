@@ -32,17 +32,13 @@ class MockTelemetryProvider:
         params: list[tuple[float, float, float]] = []
         n = 0
         for site in cat.SITES:
-            touching = [road for road in cat.ROADS if _near(road[0], site) or _near(road[-1], site)]
             for type_id, count in site["mix"].items():
                 t = cat.TYPE_BY_ID[type_id]
                 for _ in range(count):
                     n += 1
                     model = r.choice(t["models"])
                     ang, dist = r.random() * math.tau, math.sqrt(r.random()) * site["radius"]
-                    route = None
-                    if type_id == "VOL" and touching:
-                        road = r.choice(touching)
-                        route = road if _near(road[0], site) else list(reversed(road))
+                    route = _haul_route(site, r) if type_id == "VOL" else None
                     fleet.append(Equipment(
                         id=f"{type_id}-{n:03d}", pin=f"PIN{r.randint(10_000_000, 99_999_999)}",
                         oem=model.split(" ")[0], model=model, type_id=type_id,
@@ -138,5 +134,23 @@ class MockTelemetryProvider:
             yield s.model_copy(update={"prev": prev})
 
 
-def _near(pt: list[float], site: dict) -> bool:
-    return abs(pt[0] - site["lat"]) < 0.02 and abs(pt[1] - site["lon"]) < 0.02
+def _haul_route(site: dict, r: random.Random) -> list[list[float]] | None:
+    """Tramo de una vía real cercana a la obra, en [lat, lon], empezando en la obra."""
+    cands = []
+    for line in cat.REAL_ROADS:
+        i, d = min(((k, math.hypot(lo - site["lon"], la - site["lat"])) for k, (lo, la) in enumerate(line)), key=lambda x: x[1])
+        if d < 0.25:
+            cands.append((d, i, line))
+    if not cands:
+        return None
+    cands.sort(key=lambda c: c[0])
+    _, i, line = cands[int(r.random() * min(3, len(cands)))]
+    fwd, back = line[i:], list(reversed(line[: i + 1]))
+    pts = fwd if len(fwd) >= len(back) else back
+    out, length = [pts[0]], 0.0
+    for k in range(1, len(pts)):
+        if length >= 0.35:
+            break
+        length += math.hypot(pts[k][0] - pts[k - 1][0], pts[k][1] - pts[k - 1][1])
+        out.append(pts[k])
+    return [[site["lat"], site["lon"]], *([la, lo] for lo, la in out)]

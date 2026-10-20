@@ -20,12 +20,15 @@ export default function MapboxBase({ bounds, kind, onOverlay, onView, onZoom }: 
   return (
     <Map
       mapboxAccessToken={TOKEN}
-      initialViewState={{ bounds, fitBoundsOptions: { padding: 24 }, pitch: 35 }}
+      initialViewState={{ bounds, fitBoundsOptions: { padding: 24 }, pitch: 30 }}
       mapStyle={kind === 'satellite' ? 'mapbox://styles/mapbox/standard-satellite' : 'mapbox://styles/mapbox/standard'}
       onLoad={e => {
         const m = e.target;
         try { m.setConfigProperty('basemap', 'lightPreset', 'day'); m.setConfigProperty('basemap', 'showPointOfInterestLabels', false); } catch { /* estilo sin config */ }
+        // deck.gl dibuja a nivel del mar: sin relieve 3D los equipos quedan exactamente sobre su coordenada
+        m.setTerrain(null);
       }}
+      projection="mercator"
       onMove={e => onZoom(e.viewState.zoom)}
       maxPitch={60}
       style={{ position: 'absolute', inset: 0 }}
