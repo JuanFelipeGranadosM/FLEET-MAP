@@ -5,6 +5,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef } from 'react';
 import type { MapboxOverlay } from '@deck.gl/mapbox';
 import { GeoJsonLayer, IconLayer, PathLayer, ScatterplotLayer, TextLayer } from '@deck.gl/layers';
 import { HeatmapLayer } from '@deck.gl/aggregation-layers';
+import { CollisionFilterExtension, type CollisionFilterExtensionProps } from '@deck.gl/extensions';
 import type { PickingInfo } from '@deck.gl/core';
 import type { Catalog, Equipment, Site, StateId } from '../api/types';
 import type { Aggregates } from '../data/aggregate';
@@ -22,6 +23,8 @@ type RGBA = [number, number, number, number];
 const STATE_RGB = Object.fromEntries((['op', 'idle', 'standby', 'down', 'off'] as StateId[]).map(s => [s, hexToRgb(COLORS[s])])) as Record<StateId, [number, number, number]>;
 const ACCENT = hexToRgb(COLORS.accent);
 const INK: [number, number, number] = [20, 32, 46];
+// las etiquetas que chocan se ocultan (gana la de mayor prioridad) y reaparecen al acercarse
+const collide = [new CollisionFilterExtension()];
 
 interface Moving { eq: Equipment; idx: number; lens?: number[]; total?: number; phase: number; u: number }
 interface Dot { m: Moving; pos: [number, number]; state: StateId }
@@ -140,14 +143,17 @@ export function FleetMap({ catalog, fleet, agg, onHover }: Props) {
             sel && new ScatterplotLayer<Dot>({ id: 'sel', data: [sel, sel], getPosition: d => d.pos, radiusUnits: 'pixels', filled: false, stroked: true, lineWidthUnits: 'pixels', getLineWidth: 2.5,
               getRadius: (_, { index }) => (index ? R + 8 + ring * 26 : R + 8), getLineColor: (_, { index }) => [...INK, index ? 255 * (1 - ring) : 255] as RGBA,
               updateTriggers: { getPosition: tick, getRadius: ring, getLineColor: ring } }),
-            L.zoom > 10.6 && new TextLayer<Dot>({ id: 'eq-labels', data: vis, getPosition: d => d.pos, getText: d => d.m.eq.id, getSize: 11, getColor: [...INK, 235] as RGBA, getPixelOffset: [sz * 0.45, -4],
+            L.zoom > 10.6 && new TextLayer<Dot, CollisionFilterExtensionProps<Dot>>({ id: 'eq-labels', data: vis, getPosition: d => d.pos, getText: d => d.m.eq.id, getSize: 11, getColor: [...INK, 235] as RGBA, getPixelOffset: [sz * 0.45, -4],
               getTextAnchor: 'start', getAlignmentBaseline: 'center', fontFamily: '"IBM Plex Mono", monospace', fontWeight: 600, outlineWidth: 3, outlineColor: [255, 255, 255, 255], fontSettings: { sdf: true },
-              updateTriggers: { getPosition: tick } }),
-            new TextLayer<Site>({ id: 'site-labels', data: catalog.sites, getPosition: s => labelPos(s), getText: s => `${s.short.toUpperCase()}  ${L.agg.groups.site.get(s.id)?.count ?? 0}`,
+              extensions: collide, collisionGroup: 'eq-labels', getCollisionPriority: d => (d.m.eq.id === L.selected ? 1000 : d.state === 'down' ? 10 : 0),
+              updateTriggers: { getPosition: tick, getCollisionPriority: L.selected } }),
+            new TextLayer<Site, CollisionFilterExtensionProps<Site>>({ id: 'site-labels', data: catalog.sites, getPosition: s => labelPos(s), getText: s => `${s.short.toUpperCase()}  ${L.agg.groups.site.get(s.id)?.count ?? 0}`,
               getSize: 14, getColor: d => (siteSet.size && !siteSet.has(d.id) ? [...INK, 90] : [...INK, 255]) as RGBA, getTextAnchor: 'start', getAlignmentBaseline: 'bottom',
               fontFamily: '"Barlow Condensed", "Arial Narrow", sans-serif', fontWeight: 700, characterSet: 'auto', background: true, getBackgroundColor: [255, 255, 255, 235],
               getBorderColor: [...ACCENT, 255] as RGBA, getBorderWidth: 1, backgroundPadding: [6, 3, 6, 3],
-              updateTriggers: { getText: L.agg, getColor: [...siteSet].join() } }),
+              extensions: collide, collisionGroup: 'site-labels', collisionTestProps: { sizeScale: 1.15 },
+              getCollisionPriority: s => (siteSet.has(s.id) ? 1000 : 0) + (L.agg.groups.site.get(s.id)?.count ?? 0),
+              updateTriggers: { getText: L.agg, getColor: [...siteSet].join(), getCollisionPriority: [L.agg, [...siteSet].join()] } }),
           ].filter(Boolean),
         });
       }
