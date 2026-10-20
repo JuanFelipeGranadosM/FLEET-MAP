@@ -38,8 +38,8 @@ export const CATALOG: Catalog = {
   // En el modo demo las rutas de acarreo salen de vías reales (ver mockApi.ts).
   roads: [],
   states: [
-    { id: 'op', name: 'Operando', color: '#38e0a0' }, { id: 'idle', name: 'Ralentí', color: '#ff9b5c' },
-    { id: 'standby', name: 'Standby', color: '#6cb6ff' }, { id: 'down', name: 'Avería', color: '#ff5d73' },
-    { id: 'off', name: 'Sin señal', color: '#7d8aa3' },
+    { id: 'op', name: 'Operando', color: '#12a87a' }, { id: 'idle', name: 'Ralentí', color: '#f07c2a' },
+    { id: 'standby', name: 'Standby', color: '#2f86e0' }, { id: 'down', name: 'Avería', color: '#e5384f' },
+    { id: 'off', name: 'Sin señal', color: '#8a94a6' },
   ],
 };

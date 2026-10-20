@@ -6,6 +6,6 @@ import { viteSingleFile } from 'vite-plugin-singlefile';
 
 export default defineConfig({
   plugins: [react(), viteSingleFile()],
-  define: { 'import.meta.env.VITE_DEMO': JSON.stringify('1') },
+  define: { 'import.meta.env.VITE_DEMO': JSON.stringify('1'), 'import.meta.env.VITE_MAPBOX_TOKEN': JSON.stringify('') },
   build: { outDir: 'dist-demo', chunkSizeWarningLimit: 4000 },
 });

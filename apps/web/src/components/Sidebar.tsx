@@ -22,40 +22,45 @@ function DimChart({ dim, keys, label, agg }: { dim: Dim; keys: string[]; label(k
     const cats = rows.map(r => r.key).reverse();
     const byKey = new Map(rows.map(r => [r.key, r]));
     const bar = (v: number, k: string, color: string) => ({ value: v, itemStyle: { color, opacity: dimmed(k) ? 0.3 : 1, borderRadius: 3 } });
-    const series: EChartsOption['series'] = metric === 'work'
-      ? [
-          { type: 'bar', stack: 'h', name: 'Trabajadas', barWidth: 8, data: cats.map(k => bar(byKey.get(k)!.work, k, COLORS.op)) },
-          { type: 'bar', stack: 'h', name: 'Standby', barWidth: 8, data: cats.map(k => bar(byKey.get(k)!.standby, k, COLORS.standby)) },
-        ]
-      : [{ type: 'bar', name: metric === 'billed' ? 'Facturación' : 'Utilización', barWidth: 8, data: cats.map(k => {
-          const v = valueOf(metric, byKey.get(k)!);
-          return bar(v, k, metric === 'billed' ? COLORS.accent : v > 0.6 ? COLORS.op : v > 0.4 ? COLORS.accent : COLORS.down);
-        }) }];
+    // Siempre las mismas 3 series (ids estables) para que ECharts anime la transición en vez de redibujar.
+    const series = [
+      { id: 'a', type: 'bar', stack: 'h', barWidth: 8, name: metric === 'work' ? 'Trabajadas' : metric === 'billed' ? 'Facturación' : 'Utilización',
+        data: cats.map(k => {
+          const r = byKey.get(k)!, v = valueOf(metric, r);
+          return bar(metric === 'work' ? r.work : v, k, metric === 'work' ? COLORS.op : metric === 'billed' ? COLORS.accent : v > 0.6 ? COLORS.op : v > 0.4 ? COLORS.accent : COLORS.down);
+        }) },
+      { id: 'b', type: 'bar', stack: 'h', barWidth: 8, name: 'Standby', data: cats.map(k => bar(metric === 'work' ? byKey.get(k)!.standby : 0, k, COLORS.standby)) },
+    ];
     return {
-      animationDurationUpdate: 500, animationEasingUpdate: 'cubicOut',
+      animationDuration: 600, animationDurationUpdate: 450, animationEasingUpdate: 'cubicOut',
       grid: { left: 2, right: 58, top: 2, bottom: 2, containLabel: true },
       xAxis: { type: 'value', show: false, max: metric === 'util' ? 1 : undefined },
       yAxis: { type: 'category', data: cats, axisLine: { show: false }, axisTick: { show: false },
-        axisLabel: { color: '#e8eef7', fontFamily: '"IBM Plex Sans", sans-serif', fontSize: 12, width: 112, overflow: 'truncate',
+        axisLabel: { color: COLORS.fg, fontFamily: '"IBM Plex Sans", sans-serif', fontSize: 12, width: 112, overflow: 'truncate',
           formatter: (k: string) => `${label(k)} {c|${byKey.get(k)!.count}}`, rich: { c: { ...baseText } } } },
-      tooltip: { ...tooltipStyle, trigger: 'axis', axisPointer: { type: 'shadow', shadowStyle: { color: 'rgba(255,201,77,.06)' } },
+      tooltip: { ...tooltipStyle, trigger: 'axis', axisPointer: { type: 'shadow', shadowStyle: { color: 'rgba(245,184,0,.10)' } },
         formatter: (p: unknown) => {
           const ps = p as { name: string }[]; const r = byKey.get(ps[0].name)!;
           return `<b>${label(r.key)}</b><br/>${r.count} equipos<br/>Trabajadas ${fmt.hours(r.work)}<br/>Standby ${fmt.hours(r.standby)}<br/>Facturación ${fmt.money(r.billed)}`;
         } },
       series: [
-        ...(series as object[]),
+        ...series,
         // etiqueta de valor a la derecha
-        { type: 'bar', stack: metric === 'work' ? 'h' : undefined, barGap: '-100%', barWidth: 8, silent: true, itemStyle: { color: 'transparent' },
-          label: { show: true, position: 'right', ...baseText, color: '#e8eef7', formatter: (p: { name: string }) => fmtOf(metric, valueOf(metric, byKey.get(p.name)!)) },
+        { id: 'labels', type: 'bar', stack: 'h', barGap: '-100%', barWidth: 8, silent: true, itemStyle: { color: 'transparent' },
+          label: { show: true, position: 'right', ...baseText, color: COLORS.fg, formatter: (p: { name: string }) => fmtOf(metric, valueOf(metric, byKey.get(p.name)!)) },
           data: cats.map(() => 0) },
       ] as EChartsOption['series'],
     };
   }, [rows, metric, selected, label]);
 
+  // onEvents estable: echarts-for-react reinicia el gráfico si cambia la referencia.
+  const events = useMemo(() => ({
+    click: (p: { name: string; event?: { event?: MouseEvent } }) => { const e = p.event?.event; toggle(dim, p.name, !!(e && (e.ctrlKey || e.metaKey || e.shiftKey))); },
+  }), [dim, toggle]);
+
   return (
-    <ReactECharts echarts={echarts} option={option} notMerge style={{ height: rows.length * 26 + 8, width: '100%' }}
-      onEvents={{ click: (p: { name: string; event?: { event?: MouseEvent } }) => { const e = p.event?.event; toggle(dim, p.name, !!(e && (e.ctrlKey || e.metaKey || e.shiftKey))); } }} />
+    <ReactECharts echarts={echarts} option={option} notMerge={false} style={{ height: rows.length * 26 + 8, width: '100%' }}
+      onEvents={events} />
   );
 }
 

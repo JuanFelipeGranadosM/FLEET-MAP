@@ -5,7 +5,7 @@ Centro de control de flota de maquinaria: mapa interactivo con animaciones, deta
 
 | Carpeta | Contenido |
 |---|---|
-| `apps/web` | React 19 + TypeScript + Vite · MapLibre GL + deck.gl · Apache ECharts · Zustand · TanStack Query |
+| `apps/web` | React 19 + TypeScript + Vite · Mapbox GL v3 (Standard) + deck.gl · Apache ECharts · Zustand · TanStack Query |
 | `apps/api` | Python · FastAPI · simulador y adaptador ISO 15143-3 (AEMP 2.0) · WebSocket en vivo |
 | `apps/api/db/schema.sql` | Esquema PostgreSQL + TimescaleDB + PostGIS para producción |
 | `prototype/` | Primera maqueta en un solo HTML (Canvas 2D, sin dependencias) |
@@ -63,6 +63,10 @@ Para varias marcas, el siguiente paso es un worker que consulte cada OEM, escrib
 - Moneda USD. Todo se ajusta en `app/domain/catalog.py` y `app/domain/billing.py`.
 
 ## Mapa base
+
+Con `VITE_MAPBOX_TOKEN` en `apps/web/.env` se usa **Mapbox GL v3, estilo Standard** (preset de luz claro, edificios 3D; botón para satélite).
+Sin token, el mapa usa un fondo claro con vías, ríos, límites y ciudades de Natural Earth (sin OpenStreetMap).
+
 
 `apps/web/.env.example`: estilo oscuro de CARTO (sin clave) y satélite de Esri. Para producción conviene un
 proveedor con contrato (MapTiler, Stadia, Mapbox) y revisar sus términos de uso. Si el estilo no carga, el mapa

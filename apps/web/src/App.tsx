@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { api, DEMO } from './api/client';
-import { FleetMap, MapTooltip, type Hover } from './components/FleetMap';
+import { api } from './api/client';
+import { FleetMap, MAPBOX_TOKEN, MapTooltip, type Hover } from './components/FleetMap';
 import { Header } from './components/Header';
 import { Kpis } from './components/Kpis';
 import { Sidebar } from './components/Sidebar';
@@ -49,8 +49,8 @@ export function App() {
                 <button type="button" aria-pressed={layer === 'state'} onClick={() => set('layer', 'state')}>Estado</button>
                 <button type="button" aria-pressed={layer === 'heat'} onClick={() => set('layer', 'heat')}>Calor de horas</button>
               </div>
-              {!DEMO && <div className="seg" role="group" aria-label="Mapa base">
-                <button type="button" aria-pressed={basemap === 'dark'} onClick={() => set('basemap', 'dark')}>Oscuro</button>
+              {MAPBOX_TOKEN && <div className="seg" role="group" aria-label="Mapa base">
+                <button type="button" aria-pressed={basemap === 'dark'} onClick={() => set('basemap', 'dark')}>Claro</button>
                 <button type="button" aria-pressed={basemap === 'satellite'} onClick={() => set('basemap', 'satellite')}>Satélite</button>
               </div>}
               <div className="active-filters">

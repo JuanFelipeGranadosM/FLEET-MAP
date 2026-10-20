@@ -17,7 +17,8 @@ export const fmt = {
   },
 };
 
-export const COLORS = { op: '#38e0a0', idle: '#ff9b5c', standby: '#6cb6ff', down: '#ff5d73', off: '#7d8aa3', accent: '#ffc94d', muted: '#8797b0', fg: '#e8eef7', line: 'rgba(140,172,214,0.14)' };
+// Tema claro. accent = amarillo maquinaria (rellenos); accentText = versión legible sobre blanco.
+export const COLORS = { op: '#12a87a', idle: '#f07c2a', standby: '#2f86e0', down: '#e5384f', off: '#8a94a6', accent: '#f5b800', accentText: '#946600', muted: '#5d6b7e', fg: '#14202e', line: 'rgba(20,40,70,0.10)' };
 
 export function hexToRgb(hex: string): [number, number, number] {
   const n = parseInt(hex.slice(1), 16);

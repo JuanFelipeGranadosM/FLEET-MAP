@@ -7,6 +7,7 @@ import type { Aggregates, Series } from '../data/aggregate';
 import { useUi } from '../data/store';
 import { ReactECharts, echarts, tooltipStyle } from '../lib/echarts';
 import { COLORS, fmt } from '../lib/format';
+import { machineIconUrl } from '../lib/machineIcons';
 
 interface Props { eq: Equipment; idx: number; agg: Aggregates; series: Series; days: string[]; catalog: Catalog }
 
@@ -29,7 +30,7 @@ export function DetailPanel({ eq, idx, agg, series, days, catalog }: Props) {
     series: [{
       type: 'gauge', startAngle: 200, endAngle: -20, min: 0, max: 100, radius: '100%', center: ['50%', '62%'],
       progress: { show: true, width: 10, roundCap: true, itemStyle: { color: util > 0.6 ? COLORS.op : util > 0.4 ? COLORS.accent : COLORS.down } },
-      axisLine: { roundCap: true, lineStyle: { width: 10, color: [[1, 'rgba(140,172,214,.14)']] } },
+      axisLine: { roundCap: true, lineStyle: { width: 10, color: [[1, 'rgba(20,40,70,.08)']] } },
       axisTick: { show: false }, splitLine: { show: false }, axisLabel: { show: false }, pointer: { show: false }, anchor: { show: false },
       title: { offsetCenter: [0, '38%'], color: COLORS.muted, fontSize: 10, fontFamily: '"IBM Plex Sans", sans-serif' },
       detail: { offsetCenter: [0, '0%'], valueAnimation: true, formatter: '{value}%', color: COLORS.fg, fontSize: 24, fontWeight: 600, fontFamily: '"Barlow Condensed", sans-serif' },
@@ -51,7 +52,8 @@ export function DetailPanel({ eq, idx, agg, series, days, catalog }: Props) {
   return (
     <aside className="detail" aria-live="polite" key={eq.id}>
       <div className="d-head">
-        <div><h2>{eq.id}</h2><p>{type.name} · {eq.model} · {eq.year}</p></div>
+        <img className="d-icon" src={machineIconUrl(eq.typeId)} alt={type.name} width="72" height="72" />
+        <div className="d-title"><h2>{eq.id}</h2><p>{type.name} · {eq.model} · {eq.year}</p></div>
         <button type="button" className="x" aria-label="Cerrar detalle" onClick={() => select(null)}>✕</button>
       </div>
       <div className="d-meta">

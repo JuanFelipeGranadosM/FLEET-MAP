@@ -1,11 +1,8 @@
-/* Mapa base MapLibre + capa de equipos deck.gl (WebGL).
+/* Mapa base (Mapbox Standard con token, o fondo claro sin red) + capa de equipos deck.gl.
  * Las capas se reconstruyen en un bucle requestAnimationFrame que llama a
  * overlay.setProps() directamente: React no se re-renderiza en cada cuadro. */
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Map, useControl, type MapRef } from 'react-map-gl/maplibre';
-import type { StyleSpecification } from 'maplibre-gl';
-import 'maplibre-gl/dist/maplibre-gl.css';
-import { MapboxOverlay } from '@deck.gl/mapbox';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef } from 'react';
+import type { MapboxOverlay } from '@deck.gl/mapbox';
 import { GeoJsonLayer, IconLayer, PathLayer, ScatterplotLayer, TextLayer } from '@deck.gl/layers';
 import { HeatmapLayer } from '@deck.gl/aggregation-layers';
 import type { PickingInfo } from '@deck.gl/core';
@@ -13,57 +10,33 @@ import type { Catalog, Equipment, Site, StateId } from '../api/types';
 import type { Aggregates } from '../data/aggregate';
 import { useUi } from '../data/store';
 import { COLORS, fmt, hexToRgb } from '../lib/format';
-import { makeTerrain, type TerrainImage } from '../lib/terrain';
-import { machineIcon } from '../lib/machineIcons';
-import { DEMO } from '../api/client';
+import { machineIcon, machineIconUrl } from '../lib/machineIcons';
+import type { ViewApi } from './basemap/types';
 
-const DARK_STYLE = (import.meta.env.VITE_MAP_STYLE_DARK as string | undefined) || 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
-const SAT_TILES = (import.meta.env.VITE_MAP_SATELLITE_TILES as string | undefined) || 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
-const SAT_STYLE: StyleSpecification = {
-  version: 8,
-  sources: { sat: { type: 'raster', tiles: [SAT_TILES], tileSize: 256, attribution: 'Imágenes © Esri, Maxar, Earthstar Geographics' } },
-  layers: [
-    { id: 'bg', type: 'background', paint: { 'background-color': '#060d17' } },
-    { id: 'sat', type: 'raster', source: 'sat', paint: { 'raster-brightness-max': 0.62, 'raster-saturation': -0.35, 'raster-contrast': 0.1 } },
-  ],
-};
-// Respaldo sin red: relieve generado en el navegador; vías, obras y equipos los dibuja deck.gl.
-function offlineStyle(t: TerrainImage): StyleSpecification {
-  return {
-    version: 8,
-    sources: { terrain: { type: 'image', url: t.url, coordinates: t.coordinates } },
-    layers: [
-      { id: 'bg', type: 'background', paint: { 'background-color': '#060d17' } },
-      { id: 'terrain', type: 'raster', source: 'terrain', paint: { 'raster-fade-duration': 0, 'raster-resampling': 'linear', 'raster-opacity': 0.55 } },
-    ],
-  };
-}
+export const MAPBOX_TOKEN = (import.meta.env.VITE_MAPBOX_TOKEN as string | undefined) ?? '';
+const MapboxBase = MAPBOX_TOKEN ? lazy(() => import('./basemap/MapboxBase')) : null;
+const MapLibreBase = lazy(() => import('./basemap/MapLibreBase'));
 
 type RGBA = [number, number, number, number];
 const STATE_RGB = Object.fromEntries((['op', 'idle', 'standby', 'down', 'off'] as StateId[]).map(s => [s, hexToRgb(COLORS[s])])) as Record<StateId, [number, number, number]>;
 const ACCENT = hexToRgb(COLORS.accent);
+const INK: [number, number, number] = [20, 32, 46];
 
 interface Moving { eq: Equipment; idx: number; lens?: number[]; total?: number; phase: number; wob: number }
 interface Dot { m: Moving; pos: [number, number]; state: StateId; visible: boolean }
 interface Props { catalog: Catalog; fleet: Equipment[]; agg: Aggregates; onHover(h: Hover | null): void }
 export type Hover = { x: number; y: number } & ({ kind: 'eq'; eq: Equipment } | { kind: 'site'; site: Site });
-
-function DeckOverlay({ onReady }: { onReady(o: MapboxOverlay): void }) {
-  const overlay = useControl(() => new MapboxOverlay({ interleaved: false }));
-  useEffect(() => onReady(overlay), [overlay, onReady]);
-  return null;
-}
+type Context = Record<'roads' | 'rivers_lake_centerlines' | 'populated_places_simple' | 'admin_1_states_provinces_lines' | 'urban_areas', GeoJSON.FeatureCollection>;
 
 function hash(s: string) { let h = 2166136261; for (const c of s) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return h >>> 0; }
 
 export function FleetMap({ catalog, fleet, agg, onHover }: Props) {
-  const mapRef = useRef<MapRef>(null);
+  const viewRef = useRef<ViewApi | null>(null);
   const overlayRef = useRef<MapboxOverlay | null>(null);
-  const [offline, setOffline] = useState(DEMO);
   const basemap = useUi(s => s.basemap), selected = useUi(s => s.selected);
   const reduced = useMemo(() => matchMedia('(prefers-reduced-motion: reduce)').matches, []);
+  const useMapbox = !!MAPBOX_TOKEN;
 
-  // datos estáticos por equipo para la animación
   const moving = useMemo<Moving[]>(() => fleet.map((eq, idx) => {
     const h = hash(eq.id), m: Moving = { eq, idx, phase: (h % 1000) / 1000, wob: 0.6 + (h % 97) / 97 };
     if (eq.route) {
@@ -74,24 +47,22 @@ export function FleetMap({ catalog, fleet, agg, onHover }: Props) {
     return m;
   }), [fleet]);
 
-  // Sin mapa base remoto: vías, ríos, límites y ciudades reales (Natural Earth) dibujados por deck.gl.
-  useEffect(() => {
-    if (!offline) { latest.current.context = null; return; }
-    import('../demo/region.json').then(m => { latest.current.context = m.default as unknown as Context; });
-  }, [offline]);
+  const roads = useMemo(() => catalog.roads.map(r => ({ path: r.map(([la, lo]) => [lo, la] as [number, number]) })), [catalog]);
   const haul = useMemo(() => fleet.filter(e => e.route).map(e => ({ path: e.route!.map(([la, lo]) => [lo, la] as [number, number]) })), [fleet]);
 
-  const roads = useMemo(() => catalog.roads.map(r => ({ path: r.map(([la, lo]) => [lo, la] as [number, number]) })), [catalog]);
-
-  // el bucle de animación lee siempre lo último desde aquí
   const latest = useRef({ agg, selected, layer: useUi.getState().layer, live: useUi.getState().live, filters: useUi.getState().filters, zoom: 8.5, context: null as Context | null });
   latest.current.agg = agg; latest.current.selected = selected;
   useEffect(() => useUi.subscribe(s => { Object.assign(latest.current, { layer: s.layer, live: s.live, filters: s.filters }); }), []);
 
+  // Sin Mapbox: vías, ríos, límites y ciudades reales (Natural Earth) dibujados por deck.gl.
+  useEffect(() => {
+    if (useMapbox) return;
+    import('../demo/region.json').then(m => { latest.current.context = m.default as unknown as Context; });
+  }, [useMapbox]);
+
   const heatData = useMemo(() => moving.filter(m => agg.visible[m.idx]).map(m => ({ p: [m.eq.lon, m.eq.lat], w: agg.per[m.idx].work })), [moving, agg]);
   const heatRef = useRef(heatData); heatRef.current = heatData;
 
-  // aros de estado por obra
   const siteArcs = useMemo(() => {
     const out: { path: [number, number][]; color: RGBA }[] = [];
     const live = useUi.getState().live;
@@ -102,7 +73,7 @@ export function FleetMap({ catalog, fleet, agg, onHover }: Props) {
       for (const st of catalog.states) {
         const v = counts[st.id] ?? 0; if (!v) continue;
         const a1 = a0 + (v / n) * Math.PI * 2;
-        out.push({ path: arc(s, s.radius * 1.3, a0 + 0.04, a1 - 0.04), color: [...hexToRgb(st.color), 255] });
+        out.push({ path: arc(s, s.radius * 1.3, a0 + 0.04, a1 - 0.04), color: [...hexToRgb(COLORS[st.id]), 255] });
         a0 = a1;
       }
     }
@@ -133,40 +104,39 @@ export function FleetMap({ catalog, fleet, agg, onHover }: Props) {
       if (o) {
         const dots: Dot[] = moving.map(m => { const state = L.live[m.eq.id]?.state ?? 'off'; return { m, state, pos: pos(m, state, t), visible: !!L.agg.visible[m.idx] }; });
         const vis = dots.filter(d => d.visible), ghosts = dots.filter(d => !d.visible);
-        const sel = vis.find(d => d.m.eq.id === L.selected) ?? dots.find(d => d.m.eq.id === L.selected);
+        const sel = dots.find(d => d.m.eq.id === L.selected);
         const siteSet = new Set(L.filters.site);
         const ph = (d: Dot) => (t * 0.0009 + d.m.phase) % 1;
         const blink = (d: Dot) => (d.state === 'down' && !reduced ? 110 + 145 * (0.5 + 0.5 * Math.sin(t * 0.008 + d.m.phase * 6)) : 255);
         const sweep = reduced ? 0 : t * 0.0004;
-        const sz = L.zoom < 8.8 ? 18 : L.zoom < 10 ? 22 : 28, R = Math.round(sz * 0.62);
+        const sz = L.zoom < 8.8 ? 30 : L.zoom < 10 ? 40 : L.zoom < 12 ? 52 : 64, R = Math.round(sz * 0.36);
         o.setProps({
           layers: [
             ...(L.context ? contextLayers(L.context, L.zoom) : []),
-            new PathLayer({ id: 'haul', data: haul, getPath: d => d.path, getColor: [255, 201, 77, 70], widthUnits: 'pixels', getWidth: 2, capRounded: true, jointRounded: true }),
-            new PathLayer({ id: 'roads-casing', data: roads, getPath: d => d.path, getColor: [4, 9, 16, 200], widthUnits: 'pixels', getWidth: 6, capRounded: true, jointRounded: true }),
-            new PathLayer({ id: 'roads', data: roads, getPath: d => d.path, getColor: [214, 190, 140, 150], widthUnits: 'pixels', getWidth: 2, capRounded: true, jointRounded: true }),
+            new PathLayer({ id: 'haul', data: haul, getPath: d => d.path, getColor: [...ACCENT, 150] as RGBA, widthUnits: 'pixels', getWidth: 2.5, capRounded: true, jointRounded: true }),
+            new PathLayer({ id: 'roads', data: roads, getPath: d => d.path, getColor: [...ACCENT, 150] as RGBA, widthUnits: 'pixels', getWidth: 2.5, capRounded: true, jointRounded: true }),
             L.layer === 'heat' && new HeatmapLayer({ id: 'heat', data: heatRef.current, getPosition: d => d.p, getWeight: d => d.w, radiusPixels: 70, intensity: 1.2, threshold: 0.03,
-              colorRange: [[60, 20, 10], [140, 40, 20], [220, 80, 30], [255, 140, 50], [255, 190, 80], [255, 230, 160]] }),
+              colorRange: [[255, 237, 160], [254, 217, 118], [254, 178, 76], [253, 141, 60], [240, 59, 32], [189, 0, 38]] }),
             new ScatterplotLayer<Site>({ id: 'site-hit', data: catalog.sites, pickable: true, getPosition: s => [s.lon, s.lat], getRadius: s => s.radius * 1.3 * 111_000, radiusUnits: 'meters',
-              getFillColor: s => [ACCENT[0], ACCENT[1], ACCENT[2], siteSet.size && !siteSet.has(s.id) ? 4 : 14], stroked: true, getLineColor: [255, 201, 77, 70], lineWidthUnits: 'pixels', getLineWidth: 1,
+              getFillColor: s => [ACCENT[0], ACCENT[1], ACCENT[2], siteSet.size && !siteSet.has(s.id) ? 8 : 34], stroked: true, getLineColor: [...ACCENT, 140] as RGBA, lineWidthUnits: 'pixels', getLineWidth: 1,
               updateTriggers: { getFillColor: [...siteSet].join() } }),
-            new PathLayer({ id: 'site-arcs', data: arcsRef.current, getPath: d => d.path, getColor: d => d.color, widthUnits: 'pixels', getWidth: 3.5, capRounded: true }),
-            new PathLayer({ id: 'site-sweep', data: catalog.sites, getPath: s => arc(s, s.radius * 1.55, sweep, sweep + 0.9), getColor: [255, 201, 77, 140], widthUnits: 'pixels', getWidth: 1.5, updateTriggers: { getPath: sweep } }),
-            new ScatterplotLayer<Dot>({ id: 'ghosts', data: ghosts, getPosition: d => d.pos, getFillColor: [90, 105, 132, 120], radiusUnits: 'pixels', getRadius: 3 }),
-            !reduced && new ScatterplotLayer<Dot>({ id: 'pulse', data: vis.filter(d => d.state === 'op'), getPosition: d => d.pos, radiusUnits: 'pixels', getRadius: d => R + ph(d) * 22, filled: false, stroked: true,
-              lineWidthUnits: 'pixels', getLineWidth: 1.5, getLineColor: d => [...STATE_RGB.op, 150 * (1 - ph(d))] as RGBA }),
-            new ScatterplotLayer<Dot>({ id: 'glow', data: vis, getPosition: d => d.pos, radiusUnits: 'pixels', getRadius: R + 8, getFillColor: d => [...STATE_RGB[d.state], d.state === 'down' ? blink(d) * 0.25 : 50] as RGBA }),
-            new ScatterplotLayer<Dot>({ id: 'eq', data: vis, pickable: true, getPosition: d => d.pos, radiusUnits: 'pixels', getRadius: R, getFillColor: [8, 15, 26, 235],
-              stroked: true, lineWidthUnits: 'pixels', getLineWidth: 2, getLineColor: d => [...STATE_RGB[d.state], blink(d)] as RGBA }),
-            new IconLayer<Dot>({ id: 'eq-icon', data: vis, getPosition: d => d.pos, getIcon: d => machineIcon(d.m.eq.typeId), sizeUnits: 'pixels', getSize: sz,
-              getColor: d => (d.state === 'off' ? [150, 160, 180, 255] : [236, 241, 248, 255]) }),
-            sel && new ScatterplotLayer<Dot>({ id: 'sel', data: [sel, sel], getPosition: d => d.pos, radiusUnits: 'pixels', filled: false, stroked: true, lineWidthUnits: 'pixels', getLineWidth: 2,
-              getRadius: (_, { index }) => (index ? R + 5 + ((t * 0.002) % 1) * 26 : R + 5), getLineColor: (_, { index }) => [...ACCENT, index ? 255 * (1 - ((t * 0.002) % 1)) : 255] as RGBA }),
-            L.zoom > 10.6 && new TextLayer<Dot>({ id: 'eq-labels', data: vis, getPosition: d => d.pos, getText: d => d.m.eq.id, getSize: 11, getColor: [232, 238, 247, 220], getPixelOffset: [R + 5, 0],
-              getTextAnchor: 'start', getAlignmentBaseline: 'center', fontFamily: '"IBM Plex Mono", monospace', fontWeight: 500, outlineWidth: 3, outlineColor: [6, 12, 22, 255], fontSettings: { sdf: true } }),
+            new PathLayer({ id: 'site-arcs', data: arcsRef.current, getPath: d => d.path, getColor: d => d.color, widthUnits: 'pixels', getWidth: 4, capRounded: true }),
+            new PathLayer({ id: 'site-sweep', data: catalog.sites, getPath: s => arc(s, s.radius * 1.55, sweep, sweep + 0.9), getColor: [...ACCENT, 220] as RGBA, widthUnits: 'pixels', getWidth: 2, updateTriggers: { getPath: sweep } }),
+            new ScatterplotLayer<Dot>({ id: 'ghosts', data: ghosts, getPosition: d => d.pos, getFillColor: [120, 130, 150, 140], radiusUnits: 'pixels', getRadius: 3.5 }),
+            !reduced && new ScatterplotLayer<Dot>({ id: 'pulse', data: vis.filter(d => d.state === 'op'), getPosition: d => d.pos, radiusUnits: 'pixels', getRadius: d => R + ph(d) * 24, filled: false, stroked: true,
+              lineWidthUnits: 'pixels', getLineWidth: 2, getLineColor: d => [...STATE_RGB.op, 200 * (1 - ph(d))] as RGBA }),
+            // disco de estado bajo cada máquina
+            new ScatterplotLayer<Dot>({ id: 'eq-halo', data: vis, getPosition: d => d.pos, radiusUnits: 'pixels', getRadius: R, getFillColor: d => [...STATE_RGB[d.state], d.state === 'down' ? blink(d) * 0.45 : 95] as RGBA,
+              stroked: true, lineWidthUnits: 'pixels', getLineWidth: 2.5, getLineColor: d => [...STATE_RGB[d.state], blink(d)] as RGBA }),
+            new IconLayer<Dot>({ id: 'eq', data: vis, pickable: true, getPosition: d => d.pos, getIcon: d => machineIcon(d.m.eq.typeId), sizeUnits: 'pixels', getSize: sz, alphaCutoff: 0.2 }),
+            sel && new ScatterplotLayer<Dot>({ id: 'sel', data: [sel, sel], getPosition: d => d.pos, radiusUnits: 'pixels', filled: false, stroked: true, lineWidthUnits: 'pixels', getLineWidth: 2.5,
+              getRadius: (_, { index }) => (index ? R + 8 + ((t * 0.002) % 1) * 26 : R + 8), getLineColor: (_, { index }) => [...INK, index ? 255 * (1 - ((t * 0.002) % 1)) : 255] as RGBA }),
+            L.zoom > 10.6 && new TextLayer<Dot>({ id: 'eq-labels', data: vis, getPosition: d => d.pos, getText: d => d.m.eq.id, getSize: 11, getColor: [...INK, 235] as RGBA, getPixelOffset: [sz * 0.45, -4],
+              getTextAnchor: 'start', getAlignmentBaseline: 'center', fontFamily: '"IBM Plex Mono", monospace', fontWeight: 600, outlineWidth: 3, outlineColor: [255, 255, 255, 255], fontSettings: { sdf: true } }),
             new TextLayer<Site>({ id: 'site-labels', data: catalog.sites, getPosition: s => labelPos(s), getText: s => `${s.short.toUpperCase()}  ${L.agg.groups.site.get(s.id)?.count ?? 0}`,
-              getSize: 14, getColor: d => (siteSet.size && !siteSet.has(d.id) ? [232, 238, 247, 90] : [232, 238, 247, 255]), getTextAnchor: 'start', getAlignmentBaseline: 'bottom',
-              fontFamily: '"Barlow Condensed", "Arial Narrow", sans-serif', fontWeight: 600, characterSet: 'auto', background: true, getBackgroundColor: [6, 12, 22, 200], backgroundPadding: [6, 3, 6, 3],
+              getSize: 14, getColor: d => (siteSet.size && !siteSet.has(d.id) ? [...INK, 90] : [...INK, 255]) as RGBA, getTextAnchor: 'start', getAlignmentBaseline: 'bottom',
+              fontFamily: '"Barlow Condensed", "Arial Narrow", sans-serif', fontWeight: 700, characterSet: 'auto', background: true, getBackgroundColor: [255, 255, 255, 235],
+              getBorderColor: [...ACCENT, 255] as RGBA, getBorderWidth: 1, backgroundPadding: [6, 3, 6, 3],
               updateTriggers: { getText: L.agg, getColor: [...siteSet].join() } }),
           ].filter(Boolean),
         });
@@ -177,8 +147,7 @@ export function FleetMap({ catalog, fleet, agg, onHover }: Props) {
     return () => cancelAnimationFrame(raf);
   }, [moving, roads, haul, catalog, reduced]);
 
-  // interacción
-  const onOverlay = useMemo(() => (o: MapboxOverlay) => {
+  const onOverlay = useCallback((o: MapboxOverlay) => {
     overlayRef.current = o;
     o.setProps({
       onHover: (info: PickingInfo) => {
@@ -196,33 +165,23 @@ export function FleetMap({ catalog, fleet, agg, onHover }: Props) {
       getCursor: ({ isHovering, isDragging }) => (isDragging ? 'grabbing' : isHovering ? 'pointer' : 'grab'),
     });
   }, [onHover]);
+  const onView = useCallback((v: ViewApi) => { viewRef.current = v; }, []);
+  const onZoom = useCallback((z: number) => { latest.current.zoom = z; }, []);
 
   // volar al equipo seleccionado, dejando espacio para el panel de detalle
   useEffect(() => {
     if (!selected) return;
-    const eq = fleet.find(e => e.id === selected), map = mapRef.current; if (!eq || !map) return;
+    const eq = fleet.find(e => e.id === selected), v = viewRef.current; if (!eq || !v) return;
     const wide = window.innerWidth > 860;
-    map.flyTo({ center: [eq.lon, eq.lat], zoom: Math.max(map.getZoom(), 10.4), padding: { right: wide ? 380 : 0, left: 0, top: 0, bottom: wide ? 0 : 260 }, duration: reduced ? 0 : 1400, essential: true });
+    v.flyTo({ center: [eq.lon, eq.lat], zoom: Math.max(v.getZoom(), 12), padding: { right: wide ? 380 : 0, left: 0, top: 0, bottom: wide ? 0 : 260 }, duration: reduced ? 0 : 1600 });
   }, [selected, fleet, reduced]);
 
-  const b = catalog.bbox;
-  const offStyle = useMemo(() => (offline ? offlineStyle(makeTerrain(catalog.bbox)) : null), [offline, catalog.bbox]);
-  const mapStyle = offStyle ? offStyle : basemap === 'satellite' ? SAT_STYLE : DARK_STYLE;
+  const b = catalog.bbox, bounds: [[number, number], [number, number]] = [[b.lonMin, b.latMin], [b.lonMax, b.latMax]];
+  const props = { bounds, kind: basemap === 'satellite' ? 'satellite' as const : 'light' as const, onOverlay, onView, onZoom };
   return (
-    <Map
-      ref={mapRef}
-      initialViewState={{ bounds: [[b.lonMin, b.latMin], [b.lonMax, b.latMax]], fitBoundsOptions: { padding: 24 } }}
-      mapStyle={mapStyle}
-      onMove={e => { latest.current.zoom = e.viewState.zoom; }}
-      onError={e => { const msg = String((e as { error?: Error }).error?.message ?? ''); if (!offline && /style|fetch|Failed|NetworkError|AJAXError/i.test(msg)) setOffline(true); }}
-      attributionControl={{ compact: true }}
-      dragRotate={false}
-      maxZoom={16}
-      minZoom={6}
-      style={{ position: 'absolute', inset: 0 }}
-    >
-      <DeckOverlay onReady={onOverlay} />
-    </Map>
+    <Suspense fallback={null}>
+      {MapboxBase ? <MapboxBase {...props} /> : <MapLibreBase {...props} />}
+    </Suspense>
   );
 }
 
@@ -236,6 +195,24 @@ function labelPos(s: Site): [number, number] {
   return [s.lon + (r * 0.8) / k, s.lat + r * 0.75];
 }
 
+function contextLayers(c: Context, zoom: number) {
+  const major = (f: GeoJSON.Feature) => /Major|Expressway/i.test(String(f.properties?.type)) || f.properties?.expressway === 1;
+  const cities = c.populated_places_simple.features;
+  return [
+    new GeoJsonLayer({ id: 'ctx-urban', data: c.urban_areas, filled: true, stroked: false, getFillColor: [214, 204, 186, 150] }),
+    new GeoJsonLayer({ id: 'ctx-admin', data: c.admin_1_states_provinces_lines, getLineColor: [150, 140, 170, 140], lineWidthUnits: 'pixels', getLineWidth: 1.2 }),
+    new GeoJsonLayer({ id: 'ctx-rivers', data: c.rivers_lake_centerlines, getLineColor: [120, 180, 230, 230], lineWidthUnits: 'pixels', getLineWidth: 2.4, lineCapRounded: true, lineJointRounded: true }),
+    new GeoJsonLayer({ id: 'ctx-roads-casing', data: c.roads, getLineColor: [176, 186, 200, 255], lineWidthUnits: 'pixels', getLineWidth: f => (major(f) ? 6 : 4), lineCapRounded: true, lineJointRounded: true }),
+    new GeoJsonLayer({ id: 'ctx-roads', data: c.roads, getLineColor: f => (major(f) ? [252, 226, 160, 255] : [255, 255, 255, 255]), lineWidthUnits: 'pixels', getLineWidth: f => (major(f) ? 4 : 2.4), lineCapRounded: true, lineJointRounded: true }),
+    new ScatterplotLayer<GeoJSON.Feature>({ id: 'ctx-cities', data: cities, getPosition: f => (f.geometry as GeoJSON.Point).coordinates as [number, number], radiusUnits: 'pixels',
+      getRadius: f => (Number(f.properties?.pop_max) > 1e6 ? 4.5 : 3), getFillColor: [...INK, 220] as RGBA, stroked: true, getLineColor: [255, 255, 255, 255], lineWidthUnits: 'pixels', getLineWidth: 1.5 }),
+    new TextLayer<GeoJSON.Feature>({ id: 'ctx-city-labels', data: cities.filter(f => zoom > 8.6 || Number(f.properties?.pop_max) > 300000),
+      getPosition: f => (f.geometry as GeoJSON.Point).coordinates as [number, number], getText: f => String(f.properties?.name), characterSet: 'auto',
+      getSize: f => (Number(f.properties?.pop_max) > 1e6 ? 14 : 12), getColor: [70, 80, 96, 255], getPixelOffset: [7, 0], getTextAnchor: 'start', getAlignmentBaseline: 'center',
+      fontFamily: '"IBM Plex Sans", system-ui, sans-serif', fontWeight: 500, outlineWidth: 3, outlineColor: [255, 255, 255, 255], fontSettings: { sdf: true } }),
+  ];
+}
+
 export function MapTooltip({ hover, agg, catalog, index }: { hover: Hover | null; agg: Aggregates; catalog: Catalog; index: Map<string, number> }) {
   const live = useUi(s => s.live);
   if (!hover) return null;
@@ -245,8 +222,8 @@ export function MapTooltip({ hover, agg, catalog, index }: { hover: Hover | null
     const site = catalog.sites.find(s => s.id === eq.siteId)!;
     return (
       <div className="map-tip" style={style}>
-        <b>{eq.id}</b> <span className="pill" style={{ color: st.color, marginLeft: 6 }}>{st.name}</span>
-        <div className="tip-sub">{eq.model} · {site.short}</div>
+        <div className="tip-eq"><img src={machineIconUrl(eq.typeId)} alt="" width="44" height="44" /><div><b>{eq.id}</b> <span className="pill" style={{ color: st.color, marginLeft: 6 }}>{st.name}</span>
+        <div className="tip-sub">{eq.model} · {site.short}</div></div></div>
         <div className="row"><span>Trabajadas</span><span>{fmt.hours(p.work)}</span></div>
         <div className="row"><span>Standby</span><span>{fmt.hours(p.standby)}</span></div>
         <div className="row"><span>Facturación</span><span>{fmt.money(p.billed)}</span></div>
@@ -264,24 +241,4 @@ export function MapTooltip({ hover, agg, catalog, index }: { hover: Hover | null
       <div className="tip-cta">Clic para filtrar la obra</div>
     </div>
   );
-}
-
-type Context = Record<'roads' | 'rivers_lake_centerlines' | 'populated_places_simple' | 'admin_1_states_provinces_lines' | 'urban_areas', GeoJSON.FeatureCollection>;
-
-function contextLayers(c: Context, zoom: number) {
-  const major = (f: GeoJSON.Feature) => /Major|Expressway/i.test(String(f.properties?.type)) || f.properties?.expressway === 1;
-  const cities = c.populated_places_simple.features;
-  return [
-    new GeoJsonLayer({ id: 'ctx-urban', data: c.urban_areas, filled: true, stroked: false, getFillColor: [255, 201, 77, 26] }),
-    new GeoJsonLayer({ id: 'ctx-admin', data: c.admin_1_states_provinces_lines, getLineColor: [150, 175, 210, 70], lineWidthUnits: 'pixels', getLineWidth: 1 }),
-    new GeoJsonLayer({ id: 'ctx-rivers', data: c.rivers_lake_centerlines, getLineColor: [70, 150, 230, 170], lineWidthUnits: 'pixels', getLineWidth: 2.2, lineCapRounded: true, lineJointRounded: true }),
-    new GeoJsonLayer({ id: 'ctx-roads-casing', data: c.roads, getLineColor: [4, 9, 16, 220], lineWidthUnits: 'pixels', getLineWidth: f => (major(f) ? 5 : 3.5), lineCapRounded: true, lineJointRounded: true }),
-    new GeoJsonLayer({ id: 'ctx-roads', data: c.roads, getLineColor: f => (major(f) ? [226, 205, 160, 200] : [170, 180, 196, 150]), lineWidthUnits: 'pixels', getLineWidth: f => (major(f) ? 2.4 : 1.3), lineCapRounded: true, lineJointRounded: true }),
-    new ScatterplotLayer<GeoJSON.Feature>({ id: 'ctx-cities', data: cities, getPosition: f => (f.geometry as GeoJSON.Point).coordinates as [number, number], radiusUnits: 'pixels',
-      getRadius: f => (Number(f.properties?.pop_max) > 1e6 ? 4.5 : 3), getFillColor: [232, 238, 247, 200], stroked: true, getLineColor: [6, 12, 22, 255], lineWidthUnits: 'pixels', getLineWidth: 1.5 }),
-    new TextLayer<GeoJSON.Feature>({ id: 'ctx-city-labels', data: cities.filter(f => zoom > 8.6 || Number(f.properties?.pop_max) > 300000),
-      getPosition: f => (f.geometry as GeoJSON.Point).coordinates as [number, number], getText: f => String(f.properties?.name), characterSet: 'auto',
-      getSize: f => (Number(f.properties?.pop_max) > 1e6 ? 13 : 11), getColor: [200, 212, 230, 210], getPixelOffset: [7, 0], getTextAnchor: 'start', getAlignmentBaseline: 'center',
-      fontFamily: '"IBM Plex Sans", system-ui, sans-serif', fontWeight: 500, outlineWidth: 3, outlineColor: [6, 12, 22, 255], fontSettings: { sdf: true } }),
-  ];
 }

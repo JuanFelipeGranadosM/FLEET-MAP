@@ -1,8 +1,8 @@
-/* Relieve procedural para el mapa base sin red (modo demo o si el estilo remoto no carga).
- * Ruido fbm + cordilleras, curvas de nivel y sombreado; se genera una vez como imagen. */
+/* Relieve procedural suave (tema claro) para el mapa base sin red. Es decorativo:
+ * no representa la topografía real. Se genera una vez como imagen. */
 export interface TerrainImage { url: string; coordinates: [[number, number], [number, number], [number, number], [number, number]] }
 
-export function makeTerrain(bbox: { latMin: number; latMax: number; lonMin: number; lonMax: number }, margin = 0.8, S = 768): TerrainImage {
+export function makeTerrain(bbox: { latMin: number; latMax: number; lonMin: number; lonMax: number }, margin = 0.8, S = 640): TerrainImage {
   const c = document.createElement('canvas'); c.width = c.height = S;
   const g = c.getContext('2d')!, img = g.createImageData(S, S), px = img.data;
   let a = 7; const rnd = () => { a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
@@ -23,8 +23,9 @@ export function makeTerrain(bbox: { latMin: number; latMax: number; lonMin: numb
   for (let y = 1; y < S - 1; y++) for (let x = 1; x < S - 1; x++) {
     const i = y * S + x, h = H[i], sh = (H[i - S - 1] - H[i + S + 1]) * 9, lv = Math.floor(h * L);
     const edge = lv !== Math.floor(H[i + 1] * L) || lv !== Math.floor(H[i + S] * L), t = Math.min(1, Math.max(0, h));
-    let r = 9 + t * 22 + sh * 40, gg = 19 + t * 34 + sh * 48, b = 31 + t * 38 + sh * 55;
-    if (edge) { r += 14; gg += 26; b += 32; if (lv % 4 === 0) { r += 10; gg += 16; b += 20; } }
+    // papel claro con sombreado y curvas de nivel tenues
+    let r = 242 - t * 14 + sh * 26, gg = 241 - t * 10 + sh * 26, b = 236 - t * 14 + sh * 24;
+    if (edge) { r -= 10; gg -= 9; b -= 6; }
     const o = i * 4; px[o] = r; px[o + 1] = gg; px[o + 2] = b; px[o + 3] = 255;
   }
   g.putImageData(img, 0, 0);

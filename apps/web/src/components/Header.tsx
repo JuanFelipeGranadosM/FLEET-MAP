@@ -13,10 +13,10 @@ export function Header({ days, provider }: { days: string[]; provider: string })
     <header className="top">
       <div className="brand">
         <svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true">
-          <rect x="1" y="1" width="32" height="32" rx="8" fill="#112035" stroke="#ffc94d" strokeOpacity=".5" />
+          <rect x="1" y="1" width="32" height="32" rx="8" fill="#14202e" />
           <path d="M7 23h20M9 23l3-8h7l2 4h4v4" fill="none" stroke="#ffc94d" strokeWidth="2" strokeLinejoin="round" />
           <circle cx="12" cy="24" r="2.4" fill="#ffc94d" /><circle cx="23" cy="24" r="2.4" fill="#ffc94d" />
-          <path d="M19 15l5-6 3 2" fill="none" stroke="#38e0a0" strokeWidth="2" strokeLinecap="round" />
+          <path d="M19 15l5-6 3 2" fill="none" stroke="#12a87a" strokeWidth="2" strokeLinecap="round" />
         </svg>
         <div><b>FLEETMAP</b><small>Centro de control de flota</small></div>
       </div>

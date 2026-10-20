@@ -49,7 +49,7 @@ export function Kpis({ agg, catalog, total }: { agg: Aggregates; catalog: Catalo
       <Tile title="Utilización" value={k.util} format={fmt.pct} sub={<Delta cur={k.util} prev={k.prevUtil} />}>
         <StateBar parts={[[k.work, COLORS.op], [k.standby, COLORS.standby], [k.down, COLORS.down]]} />
       </Tile>
-      <Tile title="Facturación" value={k.billed} format={fmt.money} hero sub={<Delta cur={k.billed} prev={k.prevBilled} />}><Spark values={sl(daily.billed)} color={COLORS.accent} /></Tile>
+      <Tile title="Facturación" value={k.billed} format={fmt.money} hero sub={<Delta cur={k.billed} prev={k.prevBilled} />}><Spark values={sl(daily.billed)} color={COLORS.accentText} /></Tile>
       <Tile title="No facturado" value={k.leak} format={fmt.money}
         sub={<><span>{fmt.pct(k.leak / Math.max(1, k.potential))} del potencial</span><span className={fmt.delta(k.leak, k.prevLeak, true).cls}>{fmt.delta(k.leak, k.prevLeak, true).text}</span></>}>
         <StateBar parts={[[k.billed, COLORS.accent], [k.leak, COLORS.down]]} />
