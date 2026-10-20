@@ -13,8 +13,11 @@ import VOL from '../assets/machines/VOL.png?inline';
 // RET (retroexcavadora) usa la excavadora sobre llantas: la lámina no trae retroexcavadora.
 const URLS: Record<string, string> = { BUL, CAR, COM, EXC, GRU, MIN, MOT, RET, VOL };
 
+/** Clave de icono del equipo: la que mande el servidor, o el tipo si coincide con una lámina; null = sin icono. */
+export const iconKey = (eq: { icon?: string | null; typeId: string }) => (eq.icon && URLS[eq.icon] ? eq.icon : URLS[eq.typeId] ? eq.typeId : null);
+
 const cache: Record<string, { url: string; id: string; width: number; height: number; mask: boolean; anchorY: number }> = {};
-export function machineIcon(typeId: string) {
-  return (cache[typeId] ??= { id: typeId, url: URLS[typeId] ?? URLS.EXC, width: 128, height: 128, mask: false, anchorY: 80 });
+export function machineIcon(key: string) {
+  return (cache[key] ??= { id: key, url: URLS[key] ?? URLS.EXC, width: 128, height: 128, mask: false, anchorY: 80 });
 }
-export const machineIconUrl = (typeId: string) => URLS[typeId] ?? URLS.EXC;
+export const machineIconUrl = (key: string | null) => (key ? URLS[key] : null);

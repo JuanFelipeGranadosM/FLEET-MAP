@@ -1,0 +1,33 @@
+{
+  "_nota": "Coordenadas PROVISIONALES (aproximadas sobre la Ruta 45) hasta recibir las reales. path = eje del corredor [lat, lon] de sur a norte; ufs = orden de las UF a lo largo del eje.",
+  "clients": [
+    { "id": "TM1", "name": "Troncal del Magdalena 1" },
+    { "id": "TM2", "name": "Troncal del Magdalena 2" },
+    { "id": "SOP", "name": "Plantas, talleres y externos" }
+  ],
+  "fallbackSite": "MAQ",
+  "sites": [
+    { "id": "TM1-SUR", "name": "TM1 Sur", "short": "TM1 Sur", "client": "TM1", "provisional": true,
+      "lat": 5.72, "lon": -74.62, "radius": 0.06, "shiftHours": 10, "satHours": 6, "sunHours": 0,
+      "path": [[5.47, -74.65], [5.72, -74.62], [5.98, -74.59]], "ufs": ["0", "1", "2", "5", "7", "PS"], "spread": 0.004 },
+    { "id": "TM1-NORTE", "name": "TM1 Norte", "short": "TM1 Norte", "client": "TM1", "provisional": true,
+      "lat": 6.55, "lon": -74.08, "radius": 0.06, "shiftHours": 10, "satHours": 6, "sunHours": 0,
+      "path": [[6.12, -74.52], [6.53, -74.10], [7.0, -73.82]], "ufs": ["8", "9", "11", "13", "PN"], "spread": 0.004 },
+    { "id": "TM2-SUR", "name": "TM2 Sur", "short": "TM2 Sur", "client": "TM2", "provisional": true,
+      "lat": 7.57, "lon": -73.45, "radius": 0.06, "shiftHours": 10, "satHours": 6, "sunHours": 0,
+      "path": [[7.39, -73.50], [7.57, -73.45], [7.76, -73.39]], "ufs": ["0", "1", "2", "3", "PS"], "spread": 0.004 },
+    { "id": "TM2-NORTE", "name": "TM2 Norte", "short": "TM2 Norte", "client": "TM2", "provisional": true,
+      "lat": 8.55, "lon": -73.6, "radius": 0.06, "shiftHours": 10, "satHours": 6, "sunHours": 0,
+      "path": [[7.9, -73.45], [8.69, -73.66], [9.2, -73.54]], "ufs": ["6", "9", "10", "PN"], "spread": 0.004 },
+    { "id": "TM1-VHC", "name": "TM1 Transversal (vehículos)", "short": "TM1 VHC", "client": "TM1", "provisional": true,
+      "lat": 6.3, "lon": -74.35, "radius": 0.03, "shiftHours": 10, "satHours": 6, "sunHours": 0, "spread": 0.01 },
+    { "id": "TM2-VHC", "name": "TM2 Transversal (vehículos)", "short": "TM2 VHC", "client": "TM2", "provisional": true,
+      "lat": 8.1, "lon": -73.55, "radius": 0.03, "shiftHours": 10, "satHours": 6, "sunHours": 0, "spread": 0.01 },
+    { "id": "PLANTAS", "name": "Plantas", "short": "Plantas", "client": "SOP", "provisional": true,
+      "lat": 7.2, "lon": -73.7, "radius": 0.03, "shiftHours": 10, "satHours": 6, "sunHours": 0, "spread": 0.012 },
+    { "id": "MAQ", "name": "Talleres de maquinaria", "short": "Talleres", "client": "SOP", "provisional": true,
+      "lat": 7.07, "lon": -73.86, "radius": 0.03, "shiftHours": 10, "satHours": 6, "sunHours": 0, "spread": 0.012 },
+    { "id": "MAQ-EX", "name": "Alquiler a externos", "short": "Externos", "client": "SOP", "provisional": true,
+      "lat": 5.07, "lon": -73.73, "radius": 0.03, "shiftHours": 10, "satHours": 6, "sunHours": 0, "spread": 0.01 }
+  ]
+}

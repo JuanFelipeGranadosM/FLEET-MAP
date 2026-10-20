@@ -2,7 +2,7 @@ import type { Catalog, Equipment } from '../api/types';
 import type { Aggregates } from '../data/aggregate';
 import { useUi } from '../data/store';
 import { fmt } from '../lib/format';
-import { machineIconUrl } from '../lib/machineIcons';
+import { iconKey, machineIconUrl } from '../lib/machineIcons';
 
 export function RightPanel({ agg, fleet, catalog }: { agg: Aggregates; fleet: Equipment[]; catalog: Catalog }) {
   const rankBy = useUi(s => s.rankBy), set = useUi(s => s.set), selected = useUi(s => s.selected), select = useUi(s => s.select);
@@ -23,7 +23,7 @@ export function RightPanel({ agg, fleet, catalog }: { agg: Aggregates; fleet: Eq
         <ul className={'rank' + (rankBy === 'work' ? ' hours' : '')}>
           {rows.map(r => (
             <li key={r.eq.id}><button type="button" aria-current={r.eq.id === selected} onClick={() => select(r.eq.id)}>
-              <span className="ricon" style={{ borderColor: color(r.eq.id).color }}><img src={machineIconUrl(r.eq.typeId)} alt="" width="28" height="28" /></span>
+              <span className="ricon" style={{ borderColor: color(r.eq.id).color }}>{iconKey(r.eq) ? <img src={machineIconUrl(iconKey(r.eq))!} alt="" width="28" height="28" /> : <i className="noicon" style={{ background: color(r.eq.id).color }} />}</span>
               <span className="nm">{r.eq.id}<small>{catalog.types.find(t => t.id === r.eq.typeId)?.name} · {catalog.sites.find(s => s.id === r.eq.siteId)?.short}</small></span>
               <span className="vv">{rankBy === 'leak' ? fmt.money(r.v) : fmt.hours(r.v)}</span>
               <span className="mini"><b style={{ width: `${(r.v / max) * 100}%` }} /></span>

@@ -5,8 +5,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="FLEETMAP_", env_file=".env", extra="ignore")
 
-    # "mock" usa el simulador; "aemp" consulta una API ISO 15143-3 real.
+    # "mock" usa el simulador; "excel" lee el libro ARRANQUE DIARIO DE EQUIPOS;
+    # "aemp" consulta una API ISO 15143-3 real.
     provider: str = "mock"
+    excel_path: str = ""
+    sites_path: str = "sites.json"
     today: str = "2026-10-20"
     history_days: int = 180
     cors_origins: list[str] = ["http://localhost:5173"]

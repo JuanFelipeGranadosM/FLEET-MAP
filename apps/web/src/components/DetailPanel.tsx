@@ -7,9 +7,14 @@ import type { Aggregates, Series } from '../data/aggregate';
 import { useUi } from '../data/store';
 import { ReactECharts, echarts, tooltipStyle } from '../lib/echarts';
 import { COLORS, fmt } from '../lib/format';
-import { machineIconUrl } from '../lib/machineIcons';
+import { iconKey, machineIconUrl } from '../lib/machineIcons';
 
 interface Props { eq: Equipment; idx: number; agg: Aggregates; series: Series; days: string[]; catalog: Catalog }
+
+function ago(ms: number) {
+  const min = Math.max(0, Math.round(ms / 60000));
+  return min < 60 ? `Reporte hace ${min} min` : min < 1440 ? `Reporte hace ${Math.round(min / 60)} h` : min < 2880 ? 'Reporte de ayer' : `Reporte hace ${Math.round(min / 1440)} días`;
+}
 
 export function DetailPanel({ eq, idx, agg, series, days, catalog }: Props) {
   const range = useUi(s => s.range), live = useUi(s => s.live[eq.id]), select = useUi(s => s.select), toggle = useUi(s => s.toggle);
@@ -52,16 +57,17 @@ export function DetailPanel({ eq, idx, agg, series, days, catalog }: Props) {
   return (
     <aside className="detail" aria-live="polite" key={eq.id}>
       <div className="d-head">
-        <img className="d-icon" src={machineIconUrl(eq.typeId)} alt={type.name} width="72" height="72" />
-        <div className="d-title"><h2>{eq.id}</h2><p>{type.name} · {eq.model} · {eq.year}</p></div>
+        {iconKey(eq) ? <img className="d-icon" src={machineIconUrl(iconKey(eq))!} alt={type.name} width="72" height="72" /> : <span className="d-icon noicon" style={{ background: st.color }} />}
+        <div className="d-title"><h2>{eq.id}</h2><p>{eq.description || type.name} · {eq.model}{eq.year ? ` · ${eq.year}` : ''}</p></div>
         <button type="button" className="x" aria-label="Cerrar detalle" onClick={() => select(null)}>✕</button>
       </div>
       <div className="d-meta">
         <span className="pill" style={{ color: st.color }}>{st.name}</span>
-        <span>Reporte hace {Math.max(0, Math.round((now - (live?.ts ?? now)) / 60000))} min</span><span>{eq.pin}</span>
+        <span>{ago(now - (live?.ts ?? now))}</span>{eq.plate && eq.plate !== 'N/A' ? <span>Placa {eq.plate}</span> : eq.pin && eq.pin !== 'N/A' ? <span>{eq.pin}</span> : null}
       </div>
       {live?.state === 'down' && live.fault && <div className="d-fault">⚠ {live.fault}</div>}
-      <div className="d-meta"><span>Obra: <b>{site.name}</b></span><span>Cliente: <b>{client.name}</b></span></div>
+      <div className="d-meta"><span>Proyecto: <b>{site.name}</b></span>{eq.uf ? <span>Ubicación: <b>{eq.uf}</b></span> : <span>Cliente: <b>{client.name}</b></span>}</div>
+      {eq.manager && <div className="d-meta"><span>Encargado: <b>{eq.manager}</b></span></div>}
       <div className="d-grid">
         <ReactECharts echarts={echarts} option={gauge} style={{ height: 96, width: 128 }} />
         <div className="hrs">
@@ -83,16 +89,18 @@ export function DetailPanel({ eq, idx, agg, series, days, catalog }: Props) {
       </div>
       <div className="d-sec"><h4>Operación</h4>
         <div className="hrs">
-          <div><span>Combustible</span><b>{fmt.int(p.fuel)} L · {(p.fuel / Math.max(1e-9, p.work)).toFixed(1)} L/h</b></div>
-          <div><span>Horómetro</span><b>{fmt.int(eq.hourMeter)} h</b></div>
-          <div><span>Posición</span><b>{eq.lat.toFixed(4)}, {eq.lon.toFixed(4)}</b></div>
+          {p.fuel > 0 && <div><span>Combustible</span><b>{fmt.int(p.fuel)} L · {(p.fuel / Math.max(1e-9, p.work)).toFixed(1)} L/h</b></div>}
+          {eq.hourMeter > 0 && <div><span>Horómetro</span><b>{fmt.int(eq.hourMeter)} h</b></div>}
+          <div><span>Posición{site.provisional ? ' (provisional)' : ''}</span><b>{eq.lat.toFixed(4)}, {eq.lon.toFixed(4)}</b></div>
         </div>
       </div>
       <div className="d-actions">
         <button type="button" className="btn" onClick={() => toggle('site', eq.siteId)}>Filtrar obra</button>
         <button type="button" className="btn" onClick={() => toggle('type', eq.typeId)}>Filtrar tipo</button>
       </div>
-      <p className="foot">Campos AEMP: CumulativeOperatingHours, CumulativeIdleHours, FuelUsed, Location. Standby y tarifa salen del contrato.</p>
+      <p className="foot">{eq.uf
+        ? 'Fuente: libro de arranque diario. Cada día reportado cuenta el turno completo como trabajado (T), disponible (D) o varado (V); las horas reales y la tarifa llegarán con la telemetría y el contrato.'
+        : 'Campos AEMP: CumulativeOperatingHours, CumulativeIdleHours, FuelUsed, Location. Standby y tarifa salen del contrato.'}</p>
     </aside>
   );
 }

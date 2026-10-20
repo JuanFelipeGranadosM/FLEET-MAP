@@ -253,3 +253,8 @@ button { cursor: pointer; }
 .ricon { width: 34px; height: 34px; border-radius: 50%; border: 2px solid; display: grid; place-items: center; background: var(--panel-2); }
 .ricon img { width: 28px; height: 28px; }
 .legend i { box-shadow: none; }
+
+/* equipos sin icono isométrico (camionetas, generadores, torres de iluminación…) */
+.noicon { display: inline-block; flex: none; width: 14px; height: 14px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(20,40,70,.25); }
+.tip-eq .noicon { margin: 0 6px; }
+.d-icon.noicon { width: 22px; height: 22px; margin: 0 14px 0 8px; }

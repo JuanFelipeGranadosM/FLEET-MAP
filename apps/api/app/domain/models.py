@@ -25,6 +25,12 @@ class Equipment(Api):
     year: int
     hour_meter: float
     route: list[list[float]] | None = None
+    # Datos del libro de arranque (opcionales para otros proveedores)
+    description: str | None = None
+    plate: str | None = None
+    uf: str | None = None
+    manager: str | None = None
+    icon: str | None = None
 
 
 class LiveStatus(Api):

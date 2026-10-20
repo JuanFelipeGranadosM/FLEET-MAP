@@ -21,7 +21,7 @@ export function Header({ days, provider }: { days: string[]; provider: string })
         <div><b>FLEETMAP</b><small>Centro de control de flota</small></div>
       </div>
       <span className="live"><span className="dot" />EN VIVO {clock.toLocaleTimeString('es-CO', { hour12: false })}</span>
-      <span className="source">Fuente: <b>{provider === 'aemp' ? 'ISO 15143-3 (AEMP 2.0)' : provider === 'demo' ? 'Simulador en el navegador' : 'Simulador'}</b>{provider !== 'aemp' && ' · listo para ISO 15143-3'}</span>
+      <span className="source">Fuente: <b>{provider === 'aemp' ? 'ISO 15143-3 (AEMP 2.0)' : provider === 'excel' ? 'Arranque diario de equipos (40BU)' : provider === 'demo' ? 'Simulador en el navegador' : 'Simulador'}</b>{provider === 'mock' || provider === 'demo' ? ' · listo para ISO 15143-3' : ''}</span>
       <div className="dates">
         <div className="seg" role="group" aria-label="Periodo rápido">
           {PRESETS.map(p => (

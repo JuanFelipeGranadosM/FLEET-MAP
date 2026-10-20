@@ -1,10 +1,13 @@
 const nf = new Intl.NumberFormat('es-CO');
+let SYM = 'US$';
+/** Moneda del catálogo (USD del simulador, COP del libro de arranque). */
+export const setCurrency = (c: string) => { SYM = c === 'USD' ? 'US$' : c === 'COP' ? 'COP $' : c; };
 export const fmt = {
   money(v: number) {
     const a = Math.abs(v);
-    return 'US$ ' + (a >= 1e6 ? (v / 1e6).toFixed(2) + ' M' : a >= 1e3 ? (v / 1e3).toFixed(1) + ' k' : v.toFixed(0));
+    return SYM + ' ' + (a >= 1e9 ? (v / 1e9).toFixed(2) + ' mil M' : a >= 1e6 ? (v / 1e6).toFixed(2) + ' M' : a >= 1e3 ? (v / 1e3).toFixed(1) + ' k' : v.toFixed(0));
   },
-  moneyFull: (v: number) => 'US$ ' + nf.format(Math.round(v)),
+  moneyFull: (v: number) => SYM + ' ' + nf.format(Math.round(v)),
   hours: (v: number) => (v >= 1e4 ? (v / 1e3).toFixed(1) + ' k h' : nf.format(Math.round(v)) + ' h'),
   pct: (v: number) => (v * 100).toFixed(1) + ' %',
   int: (v: number) => nf.format(Math.round(v)),

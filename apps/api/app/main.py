@@ -18,6 +18,9 @@ def make_provider() -> TelemetryProvider:
     if settings.provider == "aemp":
         from .providers.aemp import AempTelemetryProvider
         return AempTelemetryProvider(settings)
+    if settings.provider == "excel":
+        from .providers.excel import ExcelProvider
+        return ExcelProvider(settings.excel_path, settings.sites_path, settings.today, settings.history_days)
     from .providers.mock import MockTelemetryProvider
     return MockTelemetryProvider(settings.today, settings.history_days)
 
@@ -51,11 +54,13 @@ async def health() -> dict:
 
 @app.get("/api/v1/catalog")
 async def catalog() -> dict:
-    return {
+    base = {
         "currency": "USD", "today": settings.today, "historyDays": settings.history_days,
         "standbyFactor": cat.STANDBY_FACTOR, "bbox": cat.BBOX, "types": cat.TYPES, "clients": cat.CLIENTS,
         "sites": cat.SITES, "roads": [], "states": cat.STATES,
     }
+    # un proveedor con catálogo propio (p. ej. el libro de arranque) reemplaza obras, tipos y clientes
+    return base | (provider.get_catalog() if hasattr(provider, "get_catalog") else {})
 
 
 @app.get("/api/v1/fleet", response_model=list[Equipment], response_model_by_alias=True)

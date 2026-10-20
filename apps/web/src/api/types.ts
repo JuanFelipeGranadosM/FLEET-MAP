@@ -3,7 +3,11 @@ export type LatLon = [number, number];
 
 export interface EquipmentType { id: string; name: string; rate: number; fuel: number; models: string[] }
 export interface Client { id: string; name: string }
-export interface Site { id: string; name: string; short: string; client: string; lat: number; lon: number; radius: number; sunday: boolean }
+export interface Site {
+  id: string; name: string; short: string; client: string; lat: number; lon: number; radius: number; sunday: boolean;
+  /** eje del corredor [lat, lon]; provisional = coordenadas aún no confirmadas */
+  path?: LatLon[]; provisional?: boolean;
+}
 export interface StateDef { id: StateId; name: string; color: string }
 
 export interface Catalog {
@@ -15,6 +19,8 @@ export interface Catalog {
 export interface Equipment {
   id: string; pin: string; oem: string; model: string; typeId: string; siteId: string; clientId: string;
   lat: number; lon: number; rate: number; standbyFactor: number; year: number; hourMeter: number; route: LatLon[] | null;
+  // libro de arranque diario
+  description?: string | null; plate?: string | null; uf?: string | null; manager?: string | null; icon?: string | null;
 }
 
 export interface LiveStatus { id: string; state: StateId; lat: number; lon: number; ts: number; fault?: string | null; prev?: StateId | null }

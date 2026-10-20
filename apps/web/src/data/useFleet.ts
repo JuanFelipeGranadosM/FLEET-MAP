@@ -1,12 +1,13 @@
 import { useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api/client';
+import { setCurrency } from '../lib/format';
 import { aggregate, toSeries } from './aggregate';
 import { useUi } from './store';
 
 /** Carga catálogo, flota e historia completa una vez; los filtros se resuelven en el cliente. */
 export function useFleetData() {
-  const catalog = useQuery({ queryKey: ['catalog'], queryFn: api.catalog, staleTime: Infinity });
+  const catalog = useQuery({ queryKey: ['catalog'], queryFn: async () => { const c = await api.catalog(); setCurrency(c.currency); return c; }, staleTime: Infinity });
   const fleet = useQuery({ queryKey: ['fleet'], queryFn: api.fleet, staleTime: 5 * 60_000 });
   const daily = useQuery({ queryKey: ['daily'], queryFn: () => api.daily(), staleTime: 5 * 60_000 });
   const live = useQuery({ queryKey: ['live'], queryFn: api.live, staleTime: 60_000 });
