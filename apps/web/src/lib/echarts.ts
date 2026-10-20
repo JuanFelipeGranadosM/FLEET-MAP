@@ -1,10 +1,10 @@
 // Registro selectivo de ECharts (tree-shaking): sólo lo que usa el tablero.
 import * as echarts from 'echarts/core';
 import { BarChart, GaugeChart } from 'echarts/charts';
-import { BrushComponent, GridComponent, TooltipComponent } from 'echarts/components';
+import { BrushComponent, GridComponent, ToolboxComponent, TooltipComponent } from 'echarts/components';
 import { CanvasRenderer } from 'echarts/renderers';
 
-echarts.use([BarChart, GaugeChart, BrushComponent, GridComponent, TooltipComponent, CanvasRenderer]);
+echarts.use([BarChart, GaugeChart, BrushComponent, GridComponent, ToolboxComponent, TooltipComponent, CanvasRenderer]);
 export { echarts };
 export { default as ReactECharts } from 'echarts-for-react/lib/core';
 
