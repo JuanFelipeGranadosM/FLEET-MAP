@@ -35,15 +35,8 @@ export const CATALOG: Catalog = {
     { id: 'S5', name: 'Variante San Isidro', short: 'San Isidro', client: 'C1', lat: 5.95, lon: -75.85, radius: 0.04, sunday: false },
     { id: 'S6', name: 'Mina El Porvenir', short: 'El Porvenir', client: 'C5', lat: 5.2, lon: -75.3, radius: 0.045, sunday: true },
   ],
-  roads: [
-    [[6.35, -75.55], [6.25, -75.42], [6.12, -75.28], [6.05, -75.2]],
-    [[6.05, -75.2], [5.88, -75.1], [5.66, -74.96], [5.45, -74.85]],
-    [[6.05, -75.2], [5.98, -75.45], [5.84, -75.6], [5.7, -75.7]],
-    [[5.7, -75.7], [5.82, -75.79], [5.95, -75.85]],
-    [[5.7, -75.7], [5.5, -75.55], [5.33, -75.4], [5.2, -75.3]],
-    [[5.2, -75.3], [5.28, -75.1], [5.4, -74.94], [5.45, -74.85]],
-    [[6.35, -75.55], [6.2, -75.72], [6.05, -75.82], [5.95, -75.85]],
-  ],
+  // En el modo demo las rutas de acarreo salen de vías reales (ver mockApi.ts).
+  roads: [],
   states: [
     { id: 'op', name: 'Operando', color: '#38e0a0' }, { id: 'idle', name: 'Ralentí', color: '#ff9b5c' },
     { id: 'standby', name: 'Standby', color: '#6cb6ff' }, { id: 'down', name: 'Avería', color: '#ff5d73' },

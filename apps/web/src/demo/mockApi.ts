@@ -2,6 +2,7 @@
  * Se activa con VITE_DEMO=1 (vista previa en un solo HTML, sin servidor). */
 import type { Billing, DailyMetrics, Equipment, LatLon, LiveStatus, StateId } from '../api/types';
 import { CATALOG, MIX } from './catalog';
+import region from './region.json';
 
 function rng(seed: number) {
   let a = seed >>> 0;
@@ -10,20 +11,38 @@ function rng(seed: number) {
 const FAULTS = ['SPN 110 · Temp. refrigerante alta', 'SPN 100 · Presión aceite baja', 'SPN 190 · Sobrevelocidad motor', 'Filtro hidráulico obstruido', 'Nivel DEF bajo'];
 const DAY = 864e5;
 
+// Las volquetas recorren tramos de vías reales (Natural Earth) cercanas a su obra.
+const REAL_ROADS: [number, number][][] = (region.roads.features as { geometry: { type: string; coordinates: unknown } }[]).flatMap(f =>
+  f.geometry.type === 'LineString' ? [f.geometry.coordinates as [number, number][]] : (f.geometry.coordinates as [number, number][][]));
+function haulRoute(site: { lat: number; lon: number }, r: () => number): LatLon[] | null {
+  const cands: { line: [number, number][]; i: number; d: number }[] = [];
+  for (const line of REAL_ROADS) {
+    let best = -1, bd = Infinity;
+    line.forEach(([lo, la], i) => { const d = Math.hypot(lo - site.lon, la - site.lat); if (d < bd) { bd = d; best = i; } });
+    if (bd < 0.25) cands.push({ line, i: best, d: bd });
+  }
+  if (!cands.length) return null;
+  cands.sort((a, b) => a.d - b.d);
+  const c = cands[Math.floor(r() * Math.min(3, cands.length))];
+  const fwd = c.line.slice(c.i), back = c.line.slice(0, c.i + 1).reverse();
+  let pts = (fwd.length >= back.length ? fwd : back);
+  let len = 0; const out: [number, number][] = [pts[0]];
+  for (let k = 1; k < pts.length && len < 0.35; k++) { len += Math.hypot(pts[k][0] - pts[k - 1][0], pts[k][1] - pts[k - 1][1]); out.push(pts[k]); }
+  pts = out;
+  return [[site.lat, site.lon], ...pts.map(([lo, la]) => [la, lo] as LatLon)];
+}
+
 function build() {
   const r = rng(20261020), C = CATALOG;
-  const near = (p: LatLon, s: { lat: number; lon: number }) => Math.abs(p[0] - s.lat) < 0.02 && Math.abs(p[1] - s.lon) < 0.02;
   const fleet: Equipment[] = [], params: [number, number, number][] = [];
   let n = 0;
   for (const site of C.sites) {
-    const touching = C.roads.filter(rd => near(rd[0], site) || near(rd[rd.length - 1], site));
     for (const [typeId, count] of Object.entries(MIX[site.id])) {
       const t = C.types.find(x => x.id === typeId)!;
       for (let k = 0; k < count; k++) {
         n++;
         const model = t.models[Math.floor(r() * t.models.length)], ang = r() * Math.PI * 2, dist = Math.sqrt(r()) * site.radius;
-        let route: LatLon[] | null = null;
-        if (typeId === 'VOL' && touching.length) { const rd = touching[Math.floor(r() * touching.length)]; route = near(rd[0], site) ? rd : [...rd].reverse(); }
+        const route = typeId === 'VOL' ? haulRoute(site, r) : null;
         fleet.push({
           id: `${typeId}-${String(n).padStart(3, '0')}`, pin: 'PIN' + Math.floor(1e7 + r() * 9e7), oem: model.split(' ')[0], model, typeId,
           siteId: site.id, clientId: site.client, lat: site.lat + Math.sin(ang) * dist, lon: site.lon + Math.cos(ang) * dist * 1.1,
