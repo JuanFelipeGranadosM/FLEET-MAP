@@ -237,7 +237,8 @@ class ExcelProvider:
         return {
             "currency": "COP", "types": self.types,
             "states": [
-                {"id": "op", "name": "Trabajando", "color": "#12a87a"}, {"id": "idle", "name": "Ralentí", "color": "#f07c2a"},
+                # sin ralentí: el libro no lo distingue
+                {"id": "op", "name": "Trabajando", "color": "#12a87a"},
                 {"id": "standby", "name": "Disponible", "color": "#2f86e0"}, {"id": "down", "name": "Varado", "color": "#e5384f"},
                 {"id": "off", "name": "Sin reporte", "color": "#8a94a6"},
             ], "clients": self.clients, "sites": sites,

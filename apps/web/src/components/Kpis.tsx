@@ -36,12 +36,14 @@ function Delta({ cur, prev, invert }: { cur: number; prev: number; invert?: bool
 
 export function Kpis({ agg, catalog, total }: { agg: Aggregates; catalog: Catalog; total: number }) {
   const { kpi: k, daily } = agg;
+  // rótulo según la fuente: el libro de arranque habla de "trabajando" y "varados"
+  const name = (id: string, def: string) => ({ Trabajando: 'trabajando', Varado: 'varados' } as Record<string, string>)[catalog.states.find(s => s.id === id)?.name ?? ''] ?? def;
   const { from, to } = useUi(s => s.range);
   const sl = (a: Float64Array) => a.subarray(from, to + 1);
   return (
     <section className="kpis" aria-label="Indicadores del periodo">
       <Tile title="Equipos en vista" value={k.count} format={v => `${Math.round(v)} / ${total}`}
-        sub={<><span>{k.states.op ?? 0} operando</span><span>{k.states.down ?? 0} en avería</span></>}>
+        sub={<><span>{k.states.op ?? 0} {name('op', 'operando')}</span><span>{k.states.down ?? 0} {name('down', 'en avería')}</span></>}>
         <StateBar parts={catalog.states.map(s => [k.states[s.id] ?? 0, s.color])} />
       </Tile>
       <Tile title="Horas trabajadas" value={k.work} format={fmt.hours} sub={<Delta cur={k.work} prev={k.prevWork} />}><Spark values={sl(daily.work)} color={COLORS.op} /></Tile>
