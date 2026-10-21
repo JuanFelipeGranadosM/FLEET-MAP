@@ -55,6 +55,7 @@ export function FleetMap({ catalog, fleet, agg, onHover }: Props) {
     return m;
   }), [roadFleet]);
 
+  const sites = snappedSites.sites;
   const corridors = useMemo(() => snappedSites.sites.filter(s => s.path && s.path.length > 1), [snappedSites.sites]);
   const points = useMemo(() => snappedSites.sites.filter(s => !s.path || s.path.length < 2), [snappedSites.sites]);
   const haul = useMemo(() => roadFleet.filter(e => e.route).map(e => ({ path: e.route!.map(([la, lo]) => [lo, la] as [number, number]) })), [roadFleet]);
@@ -75,7 +76,7 @@ export function FleetMap({ catalog, fleet, agg, onHover }: Props) {
   const siteArcs = useMemo(() => {
     const out: { path: [number, number][]; color: RGBA }[] = [];
     const live = useUi.getState().live;
-    for (const s of catalog.sites) {
+    for (const s of sites) {
       const counts: Record<string, number> = {}; let n = 0;
       moving.forEach(m => { if (m.eq.siteId === s.id && agg.visible[m.idx]) { const st = live[m.eq.id]?.state ?? 'off'; counts[st] = (counts[st] ?? 0) + 1; n++; } });
       let a0 = -Math.PI / 2;
@@ -87,7 +88,7 @@ export function FleetMap({ catalog, fleet, agg, onHover }: Props) {
       }
     }
     return out;
-  }, [catalog, moving, agg]);
+  }, [catalog, sites, moving, agg]);
   const arcsRef = useRef(siteArcs); arcsRef.current = siteArcs;
 
   useEffect(() => {
@@ -140,7 +141,7 @@ export function FleetMap({ catalog, fleet, agg, onHover }: Props) {
               getFillColor: s => [ACCENT[0], ACCENT[1], ACCENT[2], siteSet.size && !siteSet.has(s.id) ? 8 : 34], stroked: true, getLineColor: [...ACCENT, 140] as RGBA, lineWidthUnits: 'pixels', getLineWidth: 1,
               updateTriggers: { getFillColor: [...siteSet].join() } }),
             new PathLayer({ id: 'site-arcs', data: arcsRef.current, getPath: d => d.path, getColor: d => d.color, widthUnits: 'pixels', getWidth: 4, capRounded: true }),
-            new PathLayer({ id: 'site-sweep', data: catalog.sites, getPath: s => arc(s, s.radius * 1.55, sweep, sweep + 0.9), getColor: [...ACCENT, 220] as RGBA, widthUnits: 'pixels', getWidth: 2, updateTriggers: { getPath: sweep } }),
+            new PathLayer({ id: 'site-sweep', data: sites, getPath: s => arc(s, s.radius * 1.55, sweep, sweep + 0.9), getColor: [...ACCENT, 220] as RGBA, widthUnits: 'pixels', getWidth: 2, updateTriggers: { getPath: sweep } }),
             new ScatterplotLayer<Dot>({ id: 'ghosts', data: ghosts, getPosition: d => d.pos, getFillColor: [120, 130, 150, 140], radiusUnits: 'pixels', getRadius: 3.5, updateTriggers: { getPosition: tick } }),
             // base de estado bajo cada máquina (sólo parpadea la de avería)
             // equipos sin icono (camionetas, generadores, torres…) quedan como punto sólido y se pueden tocar
@@ -157,11 +158,11 @@ export function FleetMap({ catalog, fleet, agg, onHover }: Props) {
               getTextAnchor: 'start', getAlignmentBaseline: 'center', fontFamily: '"IBM Plex Mono", monospace', fontWeight: 600, outlineWidth: 3, outlineColor: [255, 255, 255, 255], fontSettings: { sdf: true },
               extensions: collide, collisionGroup: 'eq-labels', getCollisionPriority: d => (d.m.eq.id === L.selected ? 1000 : d.state === 'down' ? 10 : 0),
               updateTriggers: { getPosition: tick, getCollisionPriority: L.selected } }),
-            new TextLayer<Site, CollisionFilterExtensionProps<Site>>({ id: 'site-labels', data: catalog.sites, getPosition: s => labelPos(s), getText: s => `${s.short.toUpperCase()}  ${L.agg.groups.site.get(s.id)?.count ?? 0}`,
+            new TextLayer<Site, CollisionFilterExtensionProps<Site>>({ id: 'site-labels', data: sites, getPosition: s => labelPos(s), getText: s => `${s.short.toUpperCase()}  ${L.agg.groups.site.get(s.id)?.count ?? 0}`,
               getSize: 14, getColor: d => (siteSet.size && !siteSet.has(d.id) ? [...INK, 90] : [...INK, 255]) as RGBA, getTextAnchor: 'start', getAlignmentBaseline: 'bottom',
               fontFamily: '"Barlow Condensed", "Arial Narrow", sans-serif', fontWeight: 700, characterSet: 'auto', background: true, getBackgroundColor: [255, 255, 255, 235],
               getBorderColor: [...ACCENT, 255] as RGBA, getBorderWidth: 1, backgroundPadding: [6, 3, 6, 3],
-              extensions: collide, collisionGroup: 'site-labels', collisionTestProps: { sizeScale: 1.15 },
+              extensions: collide, collisionGroup: 'site-labels', collisionTestProps: { sizeScale: 1.8 },
               getCollisionPriority: s => (siteSet.has(s.id) ? 1000 : 0) + (L.agg.groups.site.get(s.id)?.count ?? 0),
               updateTriggers: { getText: L.agg, getColor: [...siteSet].join(), getCollisionPriority: [L.agg, [...siteSet].join()] } }),
           ].filter(Boolean),
@@ -171,7 +172,7 @@ export function FleetMap({ catalog, fleet, agg, onHover }: Props) {
     };
     raf = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(raf);
-  }, [moving, haul, catalog, corridors, points, reduced]);
+  }, [moving, haul, catalog, sites, corridors, points, reduced]);
 
   const onOverlay = useCallback((o: MapboxOverlay) => {
     overlayRef.current = o;

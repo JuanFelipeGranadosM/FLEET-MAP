@@ -111,8 +111,10 @@ export function useRoadSnappedSites(sites: Site[], fleet: Equipment[], token: st
     const outSites = sites.map(s => {
       const road = s.path && roads[siteKey(s.path)];
       if (!road) return s;
-      snapped.set(s.id, { from: s.path!, fromAcc: measure(s.path!), to: road, toAcc: measure(road) });
-      return { ...s, path: road };
+      const toAcc = measure(road), [lat, lon] = at(road, toAcc, 0.5, 0);
+      snapped.set(s.id, { from: s.path!, fromAcc: measure(s.path!), to: road, toAcc });
+      // centro (círculo, arcos y etiqueta) a mitad del recorrido vial, no de la recta
+      return { ...s, path: road, lat, lon };
     });
     if (!snapped.size) return { sites, fleet };
     const outFleet = fleet.map(e => {
