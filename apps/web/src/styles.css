@@ -258,3 +258,50 @@ button { cursor: pointer; }
 .noicon { display: inline-block; flex: none; width: 14px; height: 14px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(20,40,70,.25); }
 .tip-eq .noicon { margin: 0 6px; }
 .d-icon.noicon { width: 22px; height: 22px; margin: 0 14px 0 8px; }
+
+/* ---------- facturación (#facturacion) ---------- */
+.fin-link, .fin-back { font: 600 12px var(--f-mono); color: var(--fg); text-decoration: none; padding: 6px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
+.fin-link:hover, .fin-back:hover { border-color: var(--accent); }
+.app.fin { height: auto; min-height: 100%; grid-template-rows: auto 1fr; }
+.fin-body { display: grid; gap: 10px; align-content: start; min-width: 0; }
+.fin-kpis { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+.fin-card { padding: 12px 14px; min-width: 0; }
+.fin-card h2 { margin: 0 0 8px; font: 600 15px var(--f-display); letter-spacing: .06em; text-transform: uppercase; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.fin-card h2 small { font: 500 11px var(--f-mono); color: var(--muted); text-transform: none; letter-spacing: 0; }
+.fin-card h3 { margin: 14px 0 6px; font: 600 11px var(--f-mono); color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+.fin-card p { margin: 0 0 6px; }
+.fin-grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); }
+.fin-scroll { overflow: auto; max-height: 360px; }
+.fin-scroll.tall { max-height: calc(100vh - 220px); }
+.fin-scroll.short { max-height: 220px; }
+.fin-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.fin-table th { position: sticky; top: 0; background: var(--panel); text-align: left; font: 600 10px var(--f-mono); color: var(--muted); text-transform: uppercase; letter-spacing: .06em; padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.fin-table td { padding: 5px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.fin-table td.n, .fin-table th.n { text-align: right; font-family: var(--f-mono); white-space: nowrap; }
+.fin-table td.w { width: 22%; min-width: 80px; }
+.fin-table td.mono { font-family: var(--f-mono); white-space: nowrap; }
+.fin-table tbody tr { cursor: default; }
+.fin-table tbody tr:hover { background: var(--panel-2); }
+.fin-table tbody tr.on { background: rgba(245, 184, 0, .14); }
+.fin-assets .fin-table tbody tr, .fin-grid .panel:first-child tbody tr { cursor: pointer; }
+.fin-table .up, .fin .up { color: var(--good); }
+.fin-table .down, .fin .down { color: var(--bad); }
+.fin .muted { color: var(--muted); }
+.fin-bar { display: block; height: 6px; border-radius: 3px; background: var(--panel-2); overflow: hidden; margin: 2px 0; }
+.fin-bar i { display: block; height: 100%; border-radius: 3px; }
+.fin-note { padding: 14px; color: var(--muted); display: flex; gap: 10px; align-items: center; }
+.fin-note.bad { color: var(--bad); }
+.fin-hint { font-size: 11px; color: var(--muted); margin-top: 8px !important; }
+.fin-tools { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+.fin-tools input, .fin-tools select { padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); min-width: 0; }
+.fin-tools input { flex: 1 1 220px; }
+.fin-assets { display: grid; gap: 10px; grid-template-columns: minmax(0, 1fr); }
+.fin-drawer { position: fixed; top: 10px; right: 10px; bottom: 10px; width: min(440px, calc(100vw - 20px)); overflow: auto; padding: 14px 16px; z-index: 20; box-shadow: 0 20px 60px rgba(20, 40, 70, .25); }
+.fin-drawer h2 { margin: 0 0 4px; font: 700 20px var(--f-display); letter-spacing: .06em; }
+.fin-drawer h2 small { font: 500 12px var(--f-mono); color: var(--muted); }
+.fin-drawer h3 { margin: 14px 0 6px; font: 600 11px var(--f-mono); color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+.fin-drawer .close { position: absolute; top: 10px; right: 10px; border: 0; background: none; font-size: 16px; color: var(--muted); }
+.fin .pill { font: 600 10px var(--f-mono); padding: 2px 8px; border-radius: 99px; background: rgba(245, 184, 0, .18); color: var(--accent-text); white-space: nowrap; }
+.fin .dates input { padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); }
+@media (max-width: 640px) { .fin-table td.w { display: none; } }
+.fin-drawer .fin-table td:first-child { white-space: nowrap; }

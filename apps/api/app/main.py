@@ -10,6 +10,7 @@ from .config import settings
 from .domain import catalog as cat
 from .domain.billing import compute_billing
 from .domain.models import Billing, DailyMetrics, Equipment, LiveStatus
+from .finance import router as finance_router
 from .live import LiveHub
 from .providers.base import TelemetryProvider
 
@@ -39,6 +40,7 @@ async def lifespan(_: FastAPI):
 app = FastAPI(title="FleetMap API", version="0.1.0", lifespan=lifespan)
 app.add_middleware(GZipMiddleware, minimum_size=1024)
 app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins, allow_methods=["GET"], allow_headers=["*"])
+app.include_router(finance_router)
 
 
 def _default_range(date_from: str | None, date_to: str | None) -> tuple[str, str]:
@@ -49,7 +51,7 @@ def _default_range(date_from: str | None, date_to: str | None) -> tuple[str, str
 
 @app.get("/api/v1/health")
 async def health() -> dict:
-    return {"ok": True, "provider": settings.provider}
+    return {"ok": True, "provider": settings.provider, "database": bool(settings.database_url)}
 
 
 @app.get("/api/v1/catalog")

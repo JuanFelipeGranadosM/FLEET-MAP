@@ -32,3 +32,9 @@ def test_live_websocket():
     with TestClient(app) as c, c.websocket_connect("/api/v1/live/ws") as ws:
         ev = ws.receive_json()
         assert ev["state"] != ev["prev"]
+
+
+def test_finance_without_database():
+    with TestClient(app) as c:
+        assert c.get("/api/v1/health").json()["database"] is False
+        assert c.get("/api/v1/finance/months").status_code == 503

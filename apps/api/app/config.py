@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     today: str = "2026-10-20"
     history_days: int = 180
     cors_origins: list[str] = ["http://localhost:5173"]
+    # PostgreSQL con db/schema.sql, 002 y 003 (facturación). Vacío: los endpoints /finance responden 503.
+    database_url: str = ""
 
     # AEMP / ISO 15143-3 (sólo con provider = "aemp")
     aemp_base_url: str = ""
