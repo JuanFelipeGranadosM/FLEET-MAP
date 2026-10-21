@@ -1,7 +1,12 @@
 -- FleetMap · esquema para producción (PostgreSQL + TimescaleDB + PostGIS)
 -- El worker de ingesta escribe aquí lo que trae de AEMP; la API lee de aquí
 -- en lugar de consultar al OEM en cada petición.
-CREATE EXTENSION IF NOT EXISTS timescaledb;
+-- TimescaleDB es opcional: sin la extensión las tablas quedan como tablas normales.
+DO $$ BEGIN
+  CREATE EXTENSION IF NOT EXISTS timescaledb;
+EXCEPTION WHEN OTHERS THEN
+  RAISE NOTICE 'TimescaleDB no disponible: telemetry_reading y equipment_day quedan como tablas normales';
+END $$;
 CREATE EXTENSION IF NOT EXISTS postgis;
 
 CREATE TABLE client   (id text PRIMARY KEY, name text NOT NULL);
@@ -20,7 +25,6 @@ CREATE TABLE telemetry_reading (
   location geometry(Point, 4326), engine_on boolean, fault_codes text[],
   PRIMARY KEY (equipment_id, ts)
 );
-SELECT create_hypertable('telemetry_reading', 'ts');
 
 -- Agregado diario que consume el tablero.
 CREATE TABLE equipment_day (
@@ -28,5 +32,11 @@ CREATE TABLE equipment_day (
   work_h real, idle_h real, standby_h real, down_h real, fuel_l real,
   PRIMARY KEY (equipment_id, day)
 );
-SELECT create_hypertable('equipment_day', by_range('day'));
 CREATE INDEX ON telemetry_reading USING gist (location);
+
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'timescaledb') THEN
+    PERFORM create_hypertable('telemetry_reading', 'ts');
+    PERFORM create_hypertable('equipment_day', by_range('day'));
+  END IF;
+END $$;

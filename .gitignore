@@ -8,3 +8,6 @@ __pycache__/
 .pytest_cache/
 dist-demo/
 *.xlsx
+apps/api/data/
+*.csv
+!apps/api/db/*.example.csv

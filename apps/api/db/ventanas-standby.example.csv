@@ -1,0 +1,4 @@
+acta;placa;slot;desde;hasta;dias_disponibles;dias_taller;nota
+2;AAA001;T001;2026-09-17;2026-10-15;28;1;Taller 23/09 con parte que lo soporta
+2;AAA002;T002;2026-09-17;2026-10-02;16;0;Sale el 02/10; lo releva AAA003 en el mismo cupo
+2;AAA003;T002;2026-10-03;2026-10-15;13;0;Releva a AAA002

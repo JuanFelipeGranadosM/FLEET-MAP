@@ -18,7 +18,7 @@ cd apps/api
 python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements-dev.txt
 uvicorn app.main:app --reload
-pytest -q                                           # 3 pruebas: endpoints, reglas de facturación, WebSocket
+pytest -q                                           # endpoints, facturación, WebSocket y carga BMC
 
 # 2. Web (puerto 5173, /api se redirige a la API)
 cd apps/web
@@ -53,6 +53,36 @@ Documentación interactiva en `http://localhost:8000/docs`.
 
 Para varias marcas, el siguiente paso es un worker que consulte cada OEM, escriba en `telemetry_reading` /
 `equipment_day` (ver `db/schema.sql`) y que la API lea de la base en lugar de llamar al OEM en cada petición.
+
+## Operación diaria y facturación (contrato BMC)
+
+`apps/api/db/002_operacion_facturacion.sql` agrega al esquema:
+
+| Tabla / vista | Qué guarda |
+|---|---|
+| `daily_report` | Pool diario por equipo: parte, operador, estado (trabajando, disponible, taller, varado, sin registro), odómetro y km, jornada y horas (incluye turnos que pasan la medianoche), m³, viajes, trayecto y posición |
+| `gps_fix` | Posiciones crudas del rastreador (Detalle GPS, trayectos) |
+| `party`, `contract`, `contract_item` | Contratante, contratista, terceros; contrato, orden de operación e ítems Navision |
+| `tariff`, `tariff_at()` | Historial de precios por ítem (contrato inicial y otrosí, con vigencia) |
+| `standby_rule`, `standby_window` | Mínimo garantizado (m³ × km × viajes/mes) y días disponibles por equipo y acta; los equipos que se relevan comparten cupo |
+| `billing_cut`, `billing_cut_line` | Actas de corte: periodo, estado, cantidad cobrada vs validada y valor |
+| `haul_ticket` | Recibos de báscula del detalle del acta, con el m³-km cobrado y el recalculado |
+| `v_cut_reconciliation`, `v_standby`, `v_equipment_usage_day` | Cuadre acta vs cálculo, stand by por cupo y uso diario para el tablero |
+
+Carga (los libros se leen desde el PC; ningún dato real se versiona):
+
+```bash
+cd apps/api
+python -m app.ingest.bmc \
+  --f12 "F12-C Seguimiento Contractual Subcontratista <orden>.xlsx" \
+  --validacion "BMC-Registros/salida/Validacion Acta 02 BMC - <contrato>.xlsx" \
+  --panel BMC-Registros/BMC_1.xlsx --partes BMC-Registros/salida/lecturas-partes-....csv \
+  --ventanas ventanas-standby.csv --orden <orden de operación> --estado 1=facturada --estado 2=validada \
+  --dsn postgresql://fleetmap:fleetmap@localhost/fleetmap      # o --sql seed.sql
+```
+
+Sin `--dsn` ni `--sql` imprime el cuadre de cada acta. Formato de ventanas: `db/ventanas-standby.example.csv`.
+Pruebas contra una base real: `FLEETMAP_TEST_DSN=... pytest -q` (sin la variable esa prueba se salta).
 
 ## Reglas de negocio actuales
 
