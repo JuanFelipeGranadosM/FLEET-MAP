@@ -11,6 +11,7 @@ services:
       - dbdata:/home/postgres/pgdata
       - ./apps/api/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
       - ./apps/api/db/002_operacion_facturacion.sql:/docker-entrypoint-initdb.d/02-operacion-facturacion.sql:ro
+      - ./apps/api/db/003_repercusiones.sql:/docker-entrypoint-initdb.d/03-repercusiones.sql:ro
   api:
     build: ./apps/api
     env_file: ./apps/api/.env.example

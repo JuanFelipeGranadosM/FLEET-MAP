@@ -84,6 +84,19 @@ python -m app.ingest.bmc \
 Sin `--dsn` ni `--sql` imprime el cuadre de cada acta. Formato de ventanas: `db/ventanas-standby.example.csv`.
 Pruebas contra una base real: `FLEETMAP_TEST_DSN=... pytest -q` (sin la variable esa prueba se salta).
 
+### Repercusión de maquinaria (DATOS INFORME MASTER)
+
+`apps/api/db/003_repercusiones.sql` guarda el acta mensual de repercusión (horas × tarifa por equipo y proyecto),
+el presupuesto de venta, la tarifa hora por activo con su historial (`asset_rate`, `asset_rate_at()`), los proyectos y
+centros de coste con su obra grande (TM1/TM2 SUR/NORTE, PLANTAS…), costes vs venta y el fin de uso de los activos.
+`asset.equipment_id` es el código corto del libro de arranque (`40BUP0TC008` → `P0TC008`).
+
+```bash
+python -m app.ingest.repercusiones "DATOS INFORME MASTER.xlsx" --dsn postgresql://fleetmap:fleetmap@localhost/fleetmap
+```
+
+Sin `--dsn` ni `--sql` imprime el total por mes y lo cruza con la hoja COSTES VS VENTA. Recargar reemplaza los meses del libro.
+
 ## Reglas de negocio actuales
 
 - Horas trabajadas = horómetro (motor encendido, incluye ralentí).
